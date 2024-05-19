@@ -1,3 +1,4 @@
+import sys
 import getopt as go
 
 class BasicException( Exception ):
@@ -164,7 +165,7 @@ class Parser:
 class OptionForRun( Option ):
 
 	@classmethod
-	def run_with( this, mode, arguments ):
+	def run_with( this, modes, arguments ):
 		pass
 
 class OptionForPrint( OptionForRun ):
@@ -174,7 +175,7 @@ class OptionForPrint( OptionForRun ):
 		return ""
 
 	@classmethod
-	def run_with( this, mode, arguments ):
+	def run_with( this, modes, arguments ):
 		print( this.print_string() )
 
 class BasicVersion( OptionForPrint ):
