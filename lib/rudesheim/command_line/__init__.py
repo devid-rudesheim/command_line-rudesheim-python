@@ -158,6 +158,9 @@ class Parser:
 			if 0 < str( exception ).find( "not recognize" ):
 				raise UndefinedOptionSpecified() from exception
 
+	def parse_from_default( this ):
+		return this.parse( sys.argv[1:] )
+
 	def __init__( this, modes_templates ):
 		this.modes_templates_ = modes_templates
 
