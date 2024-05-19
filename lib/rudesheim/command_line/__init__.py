@@ -42,7 +42,7 @@ class Option( ItemForhelp ):
 		return 0
 
 	@classmethod
-	def with_values( this, strings ):
+	def with_value( this, strings ):
 		return this
 
 	@classmethod
@@ -139,7 +139,7 @@ class Parser:
 
 				option = define[1]
 				if 0 < option.value_amount():
-					option = option.with_values( [ key_value[1] ] )
+					option = option.with_value( key_value[1] )
 
 				modes[ mode ] = option
 

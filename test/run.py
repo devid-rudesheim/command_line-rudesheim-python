@@ -14,7 +14,7 @@ class Option_2( cl.Option ):
 
 class Option_3( cl.Option ):
 
-	def values( this ):
+	def value( this ):
 		return this.strings
 
 	def __init__( this, strings ):
@@ -25,7 +25,7 @@ class Option_3( cl.Option ):
 		return 1
 
 	@classmethod
-	def with_values( this, strings ):
+	def with_value( this, strings ):
 		return this( strings )
 
 class Mode_0( cl.Mode ):
@@ -149,7 +149,7 @@ class ParserTests( ut.TestCase ):
 		argument = "value"
 		result = parser.parse( [ "-d", argument ] )
 
-		this.assertEqual( [ argument ], result[0][Mode_1].values() )
+		this.assertEqual( argument, result[0][Mode_1].value() )
 
 	def test_11( this ):
 		parser = cl.Parser( [ Mode_0, Mode_1 ] )
@@ -158,7 +158,7 @@ class ParserTests( ut.TestCase ):
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
 		this.assertEqual( Option_2, result[0][Mode_0] )
-		this.assertEqual( [ argument ], result[0][Mode_1].values() )
+		this.assertEqual( argument, result[0][Mode_1].value() )
 
 	def test_12( this ):
 		parser = cl.Parser( [ Mode_1, Mode_0 ] )
@@ -167,7 +167,7 @@ class ParserTests( ut.TestCase ):
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
 		this.assertEqual( Option_2, result[0][Mode_0] )
-		this.assertEqual( [ argument ], result[0][Mode_1].values() )
+		this.assertEqual( argument, result[0][Mode_1].value() )
 
 class Version_0( cl.BasicVersion ):
 
