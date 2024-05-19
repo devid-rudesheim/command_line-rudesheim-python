@@ -221,10 +221,10 @@ class HelpTests( ut.TestCase ):
 			 	(
 					"usage: example",
 					"options:",
-					"	Mode_0",
+					"	Mode_0:",
 					"		-v,--version Print version",
 					"		-h,--help    Print help",
-					"	Mode_1",
+					"	Mode_1:",
 					"		-d,--depth   depth"
 				)
 			),

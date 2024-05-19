@@ -240,11 +240,10 @@ class BasicHelp( OptionForPrint ):
 
 		lines.append( "options:" )
 		for mode in lines_elements:
-			lines.append( "\t{0}" .format( mode[0] ) )
+			lines.append( "\t{0}:" .format( mode[0] ) )
 
 			for define in mode[1]:
 				lines.append( ( "\t\t{0:" + str( max_length ) +"}{1}" ).format( define[1] , define[0] ) )
-
 
 		return "\n".join( lines )
 
