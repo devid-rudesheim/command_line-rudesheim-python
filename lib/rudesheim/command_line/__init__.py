@@ -248,5 +248,8 @@ class BasicHelp( OptionForPrint ):
 
 		return "\n".join( lines )
 
+	def run_with( this, modes, arguments ):
+		print( this.print_string() )
+
 	def __init__( this, modes_templates ):
 		this.modes_templates = modes_templates
