@@ -15,11 +15,11 @@ class Enabled( Null ):
 	def example( this ):
 		print( "Enable" )
 
-class ExampleMode( cl.Mode ):
+class Example( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
-		global modes_templates
+		global categories_templates
 
 		return [ Enabled.tie( ( 'e', 'example' ), "for example" ) ]
 	
@@ -30,8 +30,8 @@ class ExampleMode( cl.Mode ):
 class Main( cl.OptionForRun ):
 
 	@classmethod
-	def run_with( this, modes, arguments ):
-		modes[ ExampleMode ].example()
+	def run_with( this, categories, arguments ):
+		categories[ Example ].example()
 
 class Version( cl.BasicVersion ):
 
@@ -49,25 +49,25 @@ class Help( cl.BasicHelp ):
 	def usage( this ):
 		return [ Version.product_name() ]
 
-	def __init__( this, modes_templates ):
-		super( Help, this ).__init__( modes_templates )
+	def __init__( this, categories_templates ):
+		super( Help, this ).__init__( categories_templates )
 
 
-modes_templates = []
-class RunningMode( cl.Mode ):
+categories_templates = []
+class Running( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
-		global modes_templates
+		global categories_templates
 
-		return [ Version.tie( ( 'v', 'version' ), "Print version" ), cl.DefineOfOption( Help( modes_templates ), ( 'h', 'help' ), "Print help" ) ]
+		return [ Version.tie( ( 'v', 'version' ), "Print version" ), cl.DefineOfOption( Help( categories_templates ), ( 'h', 'help' ), "Print help" ) ]
 	
 	@classmethod
 	def default( this ):
 		return Main
 
-modes_templates = [ RunningMode, ExampleMode ]
-result = cl.Parser( modes_templates ).parse_from_default()
+categories_templates = [ Running, Example ]
+result = cl.Parser( categories_templates ).parse_from_default()
 
-modes = result[0]
-modes[ RunningMode ].run_with( modes, result[1] )
+categories = result[0]
+categories[ Running ].run_with( categories, result[1] )

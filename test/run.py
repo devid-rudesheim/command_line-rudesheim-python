@@ -28,7 +28,7 @@ class Option_3( cl.Option ):
 	def with_value( this, strings ):
 		return this( strings )
 
-class Mode_0( cl.Mode ):
+class OptionCategory_0( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
@@ -38,7 +38,7 @@ class Mode_0( cl.Mode ):
 	def default( this ):
 		return Option_0
 
-class Mode_1( cl.Mode ):
+class OptionCategory_1( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
@@ -78,13 +78,13 @@ class ParserTests( ut.TestCase ):
 
 
 	def test_3( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		with this.assertRaises( cl.OptionIsInConflict ):
 			parser.parse( [ "-v", "-v" ] )
 
 	def test_4( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		arguments = [ 'one' ]
 		result = parser.parse( arguments )
@@ -95,37 +95,37 @@ class ParserTests( ut.TestCase ):
 		this.assertEqual( arguments, result[1] )
 
 	def test_5( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		result = parser.parse( [] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { Mode_0 : Option_0 }, result[0] )
+		this.assertEqual( { OptionCategory_0 : Option_0 }, result[0] )
 
 	def test_6( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		result = parser.parse( [ "-v" ] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { Mode_0 : Option_1 }, result[0] )
+		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
 
 	def test_7( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		result = parser.parse( [ "--version" ] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { Mode_0 : Option_1 }, result[0] )
+		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
 
 	def test_8( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 		argument = "value"
 
 		result = parser.parse( [ "--version", argument ] )
@@ -133,41 +133,41 @@ class ParserTests( ut.TestCase ):
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 1, len( result[1] ) )
 
-		this.assertEqual( { Mode_0 : Option_1 }, result[0] )
+		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
 		this.assertEqual( argument, result[1][0] )
 
 	def test_9( this ):
-		parser = cl.Parser( [ Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_0 ] )
 
 		result = parser.parse( [ "-h" ] )
 
-		this.assertEqual( { Mode_0 : Option_2 }, result[0] )
+		this.assertEqual( { OptionCategory_0 : Option_2 }, result[0] )
 
 	def test_10( this ):
-		parser = cl.Parser( [ Mode_1 ] )
+		parser = cl.Parser( [ OptionCategory_1 ] )
 
 		argument = "value"
 		result = parser.parse( [ "-d", argument ] )
 
-		this.assertEqual( argument, result[0][Mode_1].value() )
+		this.assertEqual( argument, result[0][OptionCategory_1].value() )
 
 	def test_11( this ):
-		parser = cl.Parser( [ Mode_0, Mode_1 ] )
+		parser = cl.Parser( [ OptionCategory_0, OptionCategory_1 ] )
 
 		argument = "value"
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result[0][Mode_0] )
-		this.assertEqual( argument, result[0][Mode_1].value() )
+		this.assertEqual( Option_2, result[0][OptionCategory_0] )
+		this.assertEqual( argument, result[0][OptionCategory_1].value() )
 
 	def test_12( this ):
-		parser = cl.Parser( [ Mode_1, Mode_0 ] )
+		parser = cl.Parser( [ OptionCategory_1, OptionCategory_0 ] )
 
 		argument = "value"
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result[0][Mode_0] )
-		this.assertEqual( argument, result[0][Mode_1].value() )
+		this.assertEqual( Option_2, result[0][OptionCategory_0] )
+		this.assertEqual( argument, result[0][OptionCategory_1].value() )
 
 class Version_0( cl.BasicVersion ):
 
@@ -200,8 +200,8 @@ class Help_0( cl.BasicHelp ):
 	def usage( this ):
 		return [ "example" ]
 
-	def __init__( this, modes_templates ):
-		super( Help_0, this ).__init__( modes_templates )
+	def __init__( this, categories_templates ):
+		super( Help_0, this ).__init__( categories_templates )
 
 
 class HelpTests( ut.TestCase ):
@@ -221,14 +221,14 @@ class HelpTests( ut.TestCase ):
 			 	(
 					"usage: example",
 					"options:",
-					"	Mode_0:",
+					"	OptionCategory_0:",
 					"		-v,--version Print version",
 					"		-h,--help    Print help",
-					"	Mode_1:",
+					"	OptionCategory_1:",
 					"		-d,--depth   depth"
 				)
 			),
-			Help_0( [ Mode_0, Mode_1 ] ).print_string()
+			Help_0( [ OptionCategory_0, OptionCategory_1 ] ).print_string()
 		)
 
 ut.main()

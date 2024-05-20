@@ -54,7 +54,7 @@ class Option( ItemForhelp ):
 		return this.tie( keys, this.description() )
 
 
-class Mode( ItemForhelp ):
+class OptionCategory( ItemForhelp ):
 
 	@classmethod
 	def options_defines( this ):
@@ -112,15 +112,15 @@ class Parser:
 		keys_specs = ( [], [] )
 
 		# build lookup table and list for mapping
-		for mode in this.modes_templates_:
-			for define in mode.options_defines():
+		for category in this.categories_templates_:
+			for define in category.options_defines():
 				for key in define.keys():
 					option = define.option()
 					amount = 0 < option.value_amount()
 
 					decorator = key_decorator_for( key )
 
-					key_value = ( mode, option )
+					key_value = ( category, option )
 					options[ decorator.convert_for_external( key ) ] = key_value
 
 					decorator.select( keys_specs ).append( [ key, decorator.convert_for_spec( key ) ][amount] )
@@ -128,30 +128,30 @@ class Parser:
 		try:
 			result = go.getopt( arguments, "".join( keys_specs[0] ), keys_specs[1] )
 
-			modes = {}
+			categories = {}
 			# for inputs
 			for key_value in result[0]:
 				define = options[ key_value[0] ]
 
-				mode = define[0]
-				if mode in modes:
+				category = define[0]
+				if category in categories:
 					raise OptionIsInConflict()
 
 				option = define[1]
 				if 0 < option.value_amount():
 					option = option.with_value( key_value[1] )
 
-				modes[ mode ] = option
+				categories[ category ] = option
 
 			# for default value
-			for mode in this.modes_templates_:
+			for category in this.categories_templates_:
 
-				if mode in modes:
+				if category in categories:
 					continue
 
-				modes[ mode ] = mode.default()
+				categories[ category ] = category.default()
 
-			return ( modes, result[1] )
+			return ( categories, result[1] )
 
 		except go.GetoptError as exception:
 
@@ -161,14 +161,14 @@ class Parser:
 	def parse_from_default( this ):
 		return this.parse( sys.argv[1:] )
 
-	def __init__( this, modes_templates ):
-		this.modes_templates_ = modes_templates
+	def __init__( this, categories_templates ):
+		this.categories_templates_ = categories_templates
 
 
 class OptionForRun( Option ):
 
 	@classmethod
-	def run_with( this, modes, arguments ):
+	def run_with( this, categories, arguments ):
 		pass
 
 class OptionForPrint( OptionForRun ):
@@ -178,7 +178,7 @@ class OptionForPrint( OptionForRun ):
 		return ""
 
 	@classmethod
-	def run_with( this, modes, arguments ):
+	def run_with( this, categories, arguments ):
 		print( this.print_string() )
 
 class BasicVersion( OptionForPrint ):
@@ -220,16 +220,16 @@ class BasicHelp( OptionForPrint ):
 		
 		lines_elements = []
 
-		for mode in this.modes_templates:
+		for category in this.categories_templates:
 			line_elements = []
 
-			for define in mode.options_defines():
+			for define in category.options_defines():
 				keys = ",".join( [ key_decorator_for( key ).convert_for_external( key ) for key in define.keys() ] )
 
 				max_length = max( max_length, len( keys ) )
 				line_elements.append( ( define.description(), keys ) )
 
-			lines_elements.append( ( mode.description(), line_elements ) )
+			lines_elements.append( ( category.description(), line_elements ) )
 
 		lines = []
 		for i in this.usage():
@@ -239,16 +239,16 @@ class BasicHelp( OptionForPrint ):
 		max_length += 1
 
 		lines.append( "options:" )
-		for mode in lines_elements:
-			lines.append( "\t{0}:" .format( mode[0] ) )
+		for category in lines_elements:
+			lines.append( "\t{0}:" .format( category[0] ) )
 
-			for define in mode[1]:
+			for define in category[1]:
 				lines.append( ( "\t\t{0:" + str( max_length ) +"}{1}" ).format( define[1] , define[0] ) )
 
 		return "\n".join( lines )
 
-	def run_with( this, modes, arguments ):
+	def run_with( this, categories, arguments ):
 		print( this.print_string() )
 
-	def __init__( this, modes_templates ):
-		this.modes_templates = modes_templates
+	def __init__( this, categories_templates ):
+		this.categories_templates = categories_templates
