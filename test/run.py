@@ -28,7 +28,7 @@ class Option_3( cl.Option ):
 	def with_value( this, strings ):
 		return this( strings )
 
-class OptionCategory_0( cl.OptionCategory ):
+class Category_0( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
@@ -38,7 +38,7 @@ class OptionCategory_0( cl.OptionCategory ):
 	def default( this ):
 		return Option_0
 
-class OptionCategory_1( cl.OptionCategory ):
+class Category_1( cl.OptionCategory ):
 
 	@classmethod
 	def options_defines( this ):
@@ -78,13 +78,13 @@ class ParserTests( ut.TestCase ):
 
 
 	def test_3( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		with this.assertRaises( cl.OptionIsInConflict ):
 			parser.parse( [ "-v", "-v" ] )
 
 	def test_4( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		arguments = [ 'one' ]
 		result = parser.parse( arguments )
@@ -95,37 +95,37 @@ class ParserTests( ut.TestCase ):
 		this.assertEqual( arguments, result[1] )
 
 	def test_5( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.parse( [] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { OptionCategory_0 : Option_0 }, result[0] )
+		this.assertEqual( { Category_0 : Option_0 }, result[0] )
 
 	def test_6( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.parse( [ "-v" ] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
+		this.assertEqual( { Category_0 : Option_1 }, result[0] )
 
 	def test_7( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.parse( [ "--version" ] )
 
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 0, len( result[1] ) )
 
-		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
+		this.assertEqual( { Category_0 : Option_1 }, result[0] )
 
 	def test_8( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 		argument = "value"
 
 		result = parser.parse( [ "--version", argument ] )
@@ -133,41 +133,41 @@ class ParserTests( ut.TestCase ):
 		this.assertEqual( 1, len( result[0] ) )
 		this.assertEqual( 1, len( result[1] ) )
 
-		this.assertEqual( { OptionCategory_0 : Option_1 }, result[0] )
+		this.assertEqual( { Category_0 : Option_1 }, result[0] )
 		this.assertEqual( argument, result[1][0] )
 
 	def test_9( this ):
-		parser = cl.Parser( [ OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.parse( [ "-h" ] )
 
-		this.assertEqual( { OptionCategory_0 : Option_2 }, result[0] )
+		this.assertEqual( { Category_0 : Option_2 }, result[0] )
 
 	def test_10( this ):
-		parser = cl.Parser( [ OptionCategory_1 ] )
+		parser = cl.Parser( [ Category_1 ] )
 
 		argument = "value"
 		result = parser.parse( [ "-d", argument ] )
 
-		this.assertEqual( argument, result[0][OptionCategory_1].value() )
+		this.assertEqual( argument, result[0][Category_1].value() )
 
 	def test_11( this ):
-		parser = cl.Parser( [ OptionCategory_0, OptionCategory_1 ] )
+		parser = cl.Parser( [ Category_0, Category_1 ] )
 
 		argument = "value"
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result[0][OptionCategory_0] )
-		this.assertEqual( argument, result[0][OptionCategory_1].value() )
+		this.assertEqual( Option_2, result[0][Category_0] )
+		this.assertEqual( argument, result[0][Category_1].value() )
 
 	def test_12( this ):
-		parser = cl.Parser( [ OptionCategory_1, OptionCategory_0 ] )
+		parser = cl.Parser( [ Category_1, Category_0 ] )
 
 		argument = "value"
 		result = parser.parse( [ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result[0][OptionCategory_0] )
-		this.assertEqual( argument, result[0][OptionCategory_1].value() )
+		this.assertEqual( Option_2, result[0][Category_0] )
+		this.assertEqual( argument, result[0][Category_1].value() )
 
 class Version_0( cl.BasicVersion ):
 
@@ -221,14 +221,14 @@ class HelpTests( ut.TestCase ):
 			 	(
 					"usage: example",
 					"options:",
-					"	OptionCategory_0:",
+					"	Category_0:",
 					"		-v,--version Print version",
 					"		-h,--help    Print help",
-					"	OptionCategory_1:",
+					"	Category_1:",
 					"		-d,--depth   depth"
 				)
 			),
-			Help_0( [ OptionCategory_0, OptionCategory_1 ] ).print_string()
+			Help_0( [ Category_0, Category_1 ] ).print_string()
 		)
 
 ut.main()
