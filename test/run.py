@@ -201,7 +201,7 @@ class Help_1( cl.BasicHelp ):
 		return [ "example overview" ]
 
 	def __init__( this, categories_templates ):
-		super( Help_1, this ).__init__( categories_templates )
+		super().__init__( categories_templates )
 
 
 class Help_2( cl.BasicHelp ):
@@ -211,7 +211,7 @@ class Help_2( cl.BasicHelp ):
 		return [ "example usage" ]
 
 	def __init__( this, categories_templates ):
-		super( Help_2, this ).__init__( categories_templates )
+		super().__init__( categories_templates )
 
 class Help_3( cl.BasicHelp ):
 
@@ -220,10 +220,10 @@ class Help_3( cl.BasicHelp ):
 		return [ "example explanation" ]
 
 	def __init__( this, categories_templates ):
-		super( Help_3, this ).__init__( categories_templates )
+		super().__init__( categories_templates )
 
 
-class Help_0( cl.BasicHelp ):
+class Help_0( Help_1, Help_2, Help_3 ):
 
 	@classmethod
 	def overview( this ):
@@ -238,7 +238,7 @@ class Help_0( cl.BasicHelp ):
 		return [ "example explanation" ]
 
 	def __init__( this, categories_templates ):
-		super( Help_0, this ).__init__( categories_templates )
+		super().__init__( categories_templates )
 
 
 class HelpTests( ut.TestCase ):

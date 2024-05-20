@@ -50,7 +50,7 @@ class Help( cl.BasicHelp ):
 		return [ Version.product_name() ]
 
 	def __init__( this, categories_templates ):
-		super( Help, this ).__init__( categories_templates )
+		super().__init__( categories_templates )
 
 
 categories_templates = []
