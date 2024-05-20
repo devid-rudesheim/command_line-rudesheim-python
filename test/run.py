@@ -48,6 +48,16 @@ class Category_1( cl.OptionCategory ):
 	def default( this ):
 		return Option_0
 
+class Category_2( cl.OptionCategory ):
+
+	@classmethod
+	def options_defines( this ):
+		return []
+	
+	@classmethod
+	def default( this ):
+		return Option_0
+
 class ParserTests( ut.TestCase ):
 
 	def test_0( this ):
@@ -222,7 +232,6 @@ class Help_3( cl.BasicHelp ):
 	def __init__( this, categories_templates ):
 		super().__init__( categories_templates )
 
-
 class Help_0( Help_1, Help_2, Help_3 ):
 
 	@classmethod
@@ -341,5 +350,32 @@ class HelpTests( ut.TestCase ):
 			),
 			Help_3( [ Category_0, Category_1 ] ).print_string()
 		)
+
+
+	def test_6( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
+				)
+			),
+			cl.BasicHelp( [ Category_2 ] ).print_string()
+		)
+
+	def test_7( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
+					"options:",
+					"	Category_1:",
+					"		-d,--depth depth"
+				)
+			),
+			cl.BasicHelp( [ Category_1, Category_2 ] ).print_string()
+		)
+
 
 ut.main()

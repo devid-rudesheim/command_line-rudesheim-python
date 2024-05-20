@@ -251,9 +251,12 @@ class BasicHelp( OptionForPrint ):
 
 		max_length += 1
 
-		lines.append( "options:" )
+		if 0 < sum( [ len( category[1] ) for category in lines_elements ] ):
+			lines.append( "options:" )
+
 		for category in lines_elements:
-			lines.append( "\t{0}:" .format( category[0] ) )
+			if 0 < len( category[1] ):
+				lines.append( "\t{0}:" .format( category[0] ) )
 
 			for define in category[1]:
 				lines.append( ( "\t\t{0:" + str( max_length ) +"}{1}" ).format( define[1] , define[0] ) )
