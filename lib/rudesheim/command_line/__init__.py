@@ -212,7 +212,15 @@ class BasicHelp( OptionForPrint ):
 		return "Print Help (this message) and exit"
 
 	@classmethod
+	def overview( this ):
+		return []
+
+	@classmethod
 	def usage( this ):
+		return []
+
+	@classmethod
+	def explanation( this ):
 		return []
 
 	def print_string( this ):
@@ -232,9 +240,14 @@ class BasicHelp( OptionForPrint ):
 			lines_elements.append( ( category.description(), line_elements ) )
 
 		lines = []
+		for i in this.overview():
+			lines.append( "overview: {0}\n".format( i ) )
+
 		for i in this.usage():
 			lines.append( "usage: {0}\n".format( i ) )
 
+		for i in this.explanation():
+			lines.append( "{0}\n".format( i ) )
 
 		max_length += 1
 

@@ -194,14 +194,52 @@ class VersionTests( ut.TestCase ):
 	def test_2( this ):
 		this.assertEqual( "version 1.0", cl.BasicVersion.print_string() )
 
-class Help_0( cl.BasicHelp ):
+class Help_1( cl.BasicHelp ):
+
+	@classmethod
+	def overview( this ):
+		return [ "example overview" ]
+
+	def __init__( this, categories_templates ):
+		super( Help_1, this ).__init__( categories_templates )
+
+
+class Help_2( cl.BasicHelp ):
 
 	@classmethod
 	def usage( this ):
-		return [ "example" ]
+		return [ "example usage" ]
+
+	def __init__( this, categories_templates ):
+		super( Help_2, this ).__init__( categories_templates )
+
+class Help_3( cl.BasicHelp ):
+
+	@classmethod
+	def explanation( this ):
+		return [ "example explanation" ]
+
+	def __init__( this, categories_templates ):
+		super( Help_3, this ).__init__( categories_templates )
+
+
+class Help_0( cl.BasicHelp ):
+
+	@classmethod
+	def overview( this ):
+		return [ "example overview" ]
+
+	@classmethod
+	def usage( this ):
+		return [ "example usage" ]
+
+	@classmethod
+	def explanation( this ):
+		return [ "example explanation" ]
 
 	def __init__( this, categories_templates ):
 		super( Help_0, this ).__init__( categories_templates )
+
 
 class HelpTests( ut.TestCase ):
 
@@ -218,6 +256,29 @@ class HelpTests( ut.TestCase ):
 		 	"\n".join \
 			(
 			 	(
+					"overview: example overview",
+					"",
+					"usage: example usage",
+					"",
+					"example explanation",
+					"",
+					"options:",
+					"	Category_0:",
+					"		-v,--version Print version",
+					"		-h,--help    Print help",
+					"	Category_1:",
+					"		-d,--depth   depth"
+				)
+			),
+			Help_0( [ Category_0, Category_1 ] ).print_string()
+		)
+
+	def test_2( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
 					"options:",
 					"	Category_0:",
 					"		-v,--version Print version",
@@ -229,13 +290,46 @@ class HelpTests( ut.TestCase ):
 			cl.BasicHelp( [ Category_0, Category_1 ] ).print_string()
 		)
 
-	def test_2( this ):
+	def test_3( this ):
 		this.assertEqual \
 		(
 		 	"\n".join \
 			(
 			 	(
-					"usage: example",
+					"overview: example overview",
+					"",
+					"options:",
+					"	Category_0:",
+					"		-v,--version Print version",
+					"		-h,--help    Print help",
+				)
+			),
+			Help_1( [ Category_0 ] ).print_string()
+		)
+
+	def test_4( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
+					"usage: example usage",
+					"",
+					"options:",
+					"	Category_1:",
+					"		-d,--depth depth"
+				)
+			),
+			Help_2( [ Category_1 ] ).print_string()
+		)
+
+	def test_5( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
+					"example explanation",
 					"",
 					"options:",
 					"	Category_0:",
@@ -245,7 +339,7 @@ class HelpTests( ut.TestCase ):
 					"		-d,--depth   depth"
 				)
 			),
-			Help_0( [ Category_0, Category_1 ] ).print_string()
+			Help_3( [ Category_0, Category_1 ] ).print_string()
 		)
 
 ut.main()
