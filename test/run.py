@@ -203,7 +203,6 @@ class Help_0( cl.BasicHelp ):
 	def __init__( this, categories_templates ):
 		super( Help_0, this ).__init__( categories_templates )
 
-
 class HelpTests( ut.TestCase ):
 
 	def product_name( this ):
@@ -219,7 +218,25 @@ class HelpTests( ut.TestCase ):
 		 	"\n".join \
 			(
 			 	(
+					"options:",
+					"	Category_0:",
+					"		-v,--version Print version",
+					"		-h,--help    Print help",
+					"	Category_1:",
+					"		-d,--depth   depth"
+				)
+			),
+			cl.BasicHelp( [ Category_0, Category_1 ] ).print_string()
+		)
+
+	def test_2( this ):
+		this.assertEqual \
+		(
+		 	"\n".join \
+			(
+			 	(
 					"usage: example",
+					"",
 					"options:",
 					"	Category_0:",
 					"		-v,--version Print version",

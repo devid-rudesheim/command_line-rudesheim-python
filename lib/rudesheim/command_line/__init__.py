@@ -233,7 +233,7 @@ class BasicHelp( OptionForPrint ):
 
 		lines = []
 		for i in this.usage():
-			lines.append( "usage: " + i )
+			lines.append( "usage: {0}\n".format( i ) )
 
 
 		max_length += 1
