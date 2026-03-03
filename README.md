@@ -1,4 +1,4 @@
-# command_line-rudesheim-python
+# Rudesheim Command Line Toolkit
 
 `rudesheim.command_line` is a lightweight CLI argument parser for Python.
 Its primary goal is not "parse string options into values" but
