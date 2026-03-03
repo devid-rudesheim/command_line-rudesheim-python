@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "command-line-rudesheim-python"
+version = "0.1.0"
+description = "Command-line argument parsing helpers under rudesheim.command_line"
+readme = "README.md"
+requires-python = ">=3.8"
+
+[tool.setuptools]
+package-dir = {"" = "lib"}
+
+[tool.setuptools.packages.find]
+where = ["lib"]
+include = ["rudesheim", "rudesheim.command_line"]
