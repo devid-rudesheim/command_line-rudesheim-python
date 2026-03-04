@@ -13,13 +13,13 @@ class OptionIsInConflict( BasicException ):
 class DefaultDoesNotExist( BasicException ):
 	pass
 
-class ItemForhelp:
+class ItemForHelp:
 
 	@classmethod
 	def description( this ):
 		return this.__name__
 
-class DefineOfOption( ItemForhelp ):
+class DefineOfOption( ItemForHelp ):
 
 	def option( this ):
 		return this.option_
@@ -35,7 +35,7 @@ class DefineOfOption( ItemForhelp ):
 		this.keys_ = keys
 		this.description_ = description
 
-class Option( ItemForhelp ):
+class Option( ItemForHelp ):
 
 	@classmethod
 	def value_amount( this ):
@@ -54,7 +54,7 @@ class Option( ItemForhelp ):
 		return this.tie( keys, this.description() )
 
 
-class OptionCategory( ItemForhelp ):
+class OptionCategory( ItemForHelp ):
 
 	@classmethod
 	def options_defines( this ):
