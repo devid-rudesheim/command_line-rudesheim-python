@@ -1,22 +1,23 @@
 # command_line-rudesheim-python 作業復帰メモ
 
-最終更新: 2026-07-16（実装反映済み）
+最終更新: 2026-07-16（実装反映済み） / 2026-07-19 追記: 「現在の構成」を v3.0.0 (private 化) に合わせて更新
 
 ## 目的（今回の設計変更の意図）
 - `Parser` が `Option` / `Command` を直接知らない構成へ寄せる。
-- ただし公開API層 (`rudesheim.command_line`) が parse内部層を継承しない。
-- parse系の識別は `parse_identifier()` の戻り値（`parse.Option` / `parse.Command`）で行う。
+- ただし公開API層 (`rudesheim.command_line`) が private内部層を継承しない。
+- parse系の識別は `parse_identifier()` の戻り値（`private.Option` / `private.Command`）で行う。
 
-## 現在の構成
+## 現在の構成（2026-07-19 追記: v3.0.0 の private 化を反映）
 - 公開層: `lib/rudesheim/command_line/__init__.py`
   - 公開クラス: `Selectable`, `Option`, `Command`, `SelectableCategory`, `Parser` ほか
-  - `Selectable`/派生は **parse層を継承しない**
-  - `parse_identifier()` で `parse.*` の識別子クラスを返す
-- parse内部層: `lib/rudesheim/command_line/parse/__init__.py`
+    - `Selectable`/派生は **private層を継承しない**
+    - `parse_identifier()` で `private.*` の識別子クラスを返す
+- private内部層: `lib/rudesheim/command_line/private/__init__.py`（旧 parse 層を改称・統合）
   - Parser専用の選択処理実装: `Selectable`, `Option`, `Command`
   - 補助: `ShortKeyDecorator`, `LongKeyDecorator`, `key_decorator_for`
   - 例外: `BasicException`, `UndefinedOptionSpecified`, `OptionIsInConflict`
-  - `parse.Parser` は削除済み（循環回避のため）
+    - `private.Parser` は存在しない（循環回避のため、Parserは公開層のみ）
+    - `ParseState` も private 層に移動済み（v3.0.0）。`Parser.resolve()` は `ParseState` ではなく `RunParameters` を直接返す
 
 ## 重要な実装ポイント
 - `command_line.Parser` 実装は公開層に存在。
@@ -110,7 +111,7 @@
   - 危険: `Command` が文法定義・解析制御・実行を抱えて巨大化
   - 対策: 解析ループは runtime 側へ分離し、`Command` は宣言と実行責務に限定
 - 循環依存の再発
-  - 危険: parse内部層と公開層の密結合が戻る
+    - 危険: private内部層と公開層の密結合が戻る
   - 対策: 継承依存ではなく識別子/プロトコル中心を維持
 - エラー責務の曖昧化
   - 危険: 未定義 option の判定階層がぶれる
