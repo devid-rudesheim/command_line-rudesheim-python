@@ -1,5 +1,7 @@
 #!/opt/homebrew/bin/python3
 
+import sys
+
 import rudesheim.command_line as cl
 
 class Null( cl.Option ):
@@ -15,10 +17,10 @@ class Enabled( Null ):
 	def example( this ):
 		print( "Enable" )
 
-class Example( cl.OptionCategory ):
+class Example( cl.SelectableCategory ):
 
 	@classmethod
-	def options_defines( this ):
+	def selectables_defines( this ):
 		global categories_templates
 
 		return [ Enabled.tie( ( 'e', 'example' ), "for example" ) ]
@@ -27,11 +29,11 @@ class Example( cl.OptionCategory ):
 	def default( this ):
 		return Disabled
 
-class Main( cl.OptionForRun ):
+class Main( cl.Option ):
 
 	@classmethod
-	def run_with( this, categories, arguments ):
-		categories[ Example ].example()
+	def run_with( this, run_parameters ):
+		run_parameters.categories[ Example ].example()
 
 class Version( cl.BasicVersion ):
 
@@ -54,10 +56,10 @@ class Help( cl.BasicHelp ):
 
 
 categories_templates = []
-class Running( cl.OptionCategory ):
+class Running( cl.SelectableCategory ):
 
 	@classmethod
-	def options_defines( this ):
+	def selectables_defines( this ):
 		global categories_templates
 
 		return [ Version.tie( ( 'v', 'version' ), "Print version" ), cl.DefineOfOption( Help( categories_templates ), ( 'h', 'help' ), "Print help" ) ]
@@ -67,7 +69,6 @@ class Running( cl.OptionCategory ):
 		return Main
 
 categories_templates = [ Running, Example ]
-result = cl.Parser( categories_templates ).parse_from_default()
+state = cl.Parser( categories_templates ).resolve( sys.argv[1:] )
 
-categories = result[0]
-categories[ Running ].run_with( categories, result[1] )
+state.run_parameters.categories[ Running ].run_with( state.run_parameters )

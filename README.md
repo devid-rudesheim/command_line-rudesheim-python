@@ -4,6 +4,14 @@
 Its primary goal is not "parse string options into values" but
 "select objects that own behavior".
 
+## Version 2.0 — Breaking Change Notice
+
+This is version 2.0, and it is **not compatible with 1.0**. `Parser.parse()` no longer returns a
+`(categories, arguments)` tuple; it now walks a `Command` tree and calls `run_with(run_parameters)`
+for you (see "Two Ways To Drive It" below). `run_with` takes a single `RunParameters` argument
+instead of separate `categories`/`arguments` parameters, and `OptionForRun` has been removed.
+Code written against 1.0 needs to be updated before it will run on 2.0.
+
 ## Install
 
 Install from this repository root:
@@ -34,12 +42,12 @@ Many CLI libraries return primitive values (`str`, `bool`, etc.), then your app 
 
 As features grow, this area becomes hard to maintain.
 
-This library solves that by selecting `Option` objects (or classes) directly.
+This library solves that by selecting `Option`/`Command` objects (or classes) directly.
 After parsing, you get a map like:
 
-- `Category -> selected Option`
+- `Category -> selected Option` (or `Category -> selected Command`)
 
-If each `Option` has its own behavior method, caller-side branching is no longer needed.
+If each selected object has its own behavior method, caller-side branching is no longer needed.
 Branching is absorbed into object behavior (polymorphism).
 
 ## What Gets Cleaner
@@ -68,7 +76,20 @@ myapp --depth=3
 
 # option + remaining args
 myapp --apply target_a target_b
+
+# subcommands (see "Subcommands / Command Tree" below)
+myapp compose up -d web db
 ```
+
+## Two Ways To Drive It
+
+- **`Parser.resolve(arguments, user_datas=None)`** always works, and never executes anything.
+  It just returns a `state` whose `state.run_parameters` holds `categories`, `arguments`, and `user_datas`.
+  You dispatch behavior yourself, typically with one line at the end (see "Quick Start" below).
+- **`Parser.parse(arguments, user_datas=None)`** additionally walks a `Command` tree (declared via
+  `parser_define()`) and calls `run_with(run_parameters)` exactly once on whichever `Command` ends up
+  selected deepest, then returns its result (see "Subcommands / Command Tree" below).
+  It only makes sense when at least one category in the tree is made of `Command`s.
 
 ## Before / After
 
@@ -110,10 +131,10 @@ class Delete(cl.Option):
     def execute(cls):
         run_delete()
 
-class Mode(cl.OptionCategory):
+class Mode(cl.SelectableCategory):
     # REQUIRED (practical): declare selectable options in this category
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return [
             DryRun.tie(("d", "dry-run"), "execute without changes"),
             Apply.tie(("a", "apply"), "apply changes"),
@@ -125,9 +146,9 @@ class Mode(cl.OptionCategory):
     def default(cls):
         return DryRun
 
-categories, arguments = cl.Parser([Mode]).parse(["--apply"])
+state = cl.Parser([Mode]).resolve(["--apply"])
 # FREE: caller sends behavior message to selected object
-categories[Mode].execute()
+state.run_parameters.categories[Mode].execute()
 ```
 
 No `if/elif` by option value is needed in the caller.
@@ -166,9 +187,9 @@ class Apply(cl.Option):
     def after_batch(cls):
         commit_transaction()
 
-class Mode(cl.OptionCategory):
+class Mode(cl.SelectableCategory):
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return [
             DryRun.tie(("d", "dry-run"), "do not mutate"),
             Apply.tie(("a", "apply"), "apply changes"),
@@ -204,9 +225,9 @@ class Verbose(cl.Option):
     def on_finish(cls):
         print("[verbose] finish")
 
-class ReportStyle(cl.OptionCategory):
+class ReportStyle(cl.SelectableCategory):
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return [
             Quiet.tie(("q", "quiet"), "minimal output"),
             Verbose.tie(("V", "verbose"), "verbose output"),
@@ -216,12 +237,13 @@ class ReportStyle(cl.OptionCategory):
     def default(cls):
         return Quiet
 
-categories, arguments = cl.Parser([Mode, ReportStyle]).parse(["--apply", "--verbose", "A", "B"])
+state = cl.Parser([Mode, ReportStyle]).resolve(["--apply", "--verbose", "A", "B"])
+categories = state.run_parameters.categories
 mode = categories[Mode]
 report = categories[ReportStyle]
 
 # shared flow (common processing)
-items = arguments
+items = state.run_parameters.arguments
 report.on_start(items)        # second category behavior
 mode.before_batch(items)      # option-specific behavior
 for item in items:            # common loop
@@ -258,21 +280,24 @@ class Depth(cl.Option):
     def as_int(self):
         return int(self.text)
 
-class DepthCategory(cl.OptionCategory):
+class DepthCategory(cl.SelectableCategory):
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return [Depth.tie(("d", "depth"), "depth value")]
 
     @classmethod
     def default(cls):
         return Depth("1")
 
-categories, arguments = cl.Parser([DepthCategory]).parse(["--depth=3", "target"])
-depth = categories[DepthCategory].as_int()  # 3
-remaining = arguments  # ["target"]
+state = cl.Parser([DepthCategory]).resolve(["--depth=3", "target"])
+depth = state.run_parameters.categories[DepthCategory].as_int()  # 3
+remaining = state.run_parameters.arguments  # ["target"]
 ```
 
 ## Quick Start
+
+A flat command with no subcommands at all (like `pwd -L`) is driven with `resolve()` plus one
+manual `run_with(...)` call — there is no verb to recurse into, so `parse()` (below) does not apply here.
 
 ```python
 import rudesheim.command_line as cl
@@ -289,10 +314,10 @@ class Enabled(cl.Option):
     def example(cls):
         print("Enable")
 
-class Example(cl.OptionCategory):
+class Example(cl.SelectableCategory):
     # REQUIRED (practical)
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return [Enabled.tie(("e", "example"), "for example")]
 
     # REQUIRED (practical)
@@ -300,15 +325,15 @@ class Example(cl.OptionCategory):
     def default(cls):
         return Disabled
 
-class Main(cl.OptionForRun):
-    # REQUIRED only when you use OptionForRun pattern
+class Main(cl.Option):
+    # FREE: give the entry-point option a run_with of its own
     @classmethod
-    def run_with(cls, categories, arguments):
-        categories[Example].example()
+    def run_with(cls, run_parameters):
+        run_parameters.categories[Example].example()
 
-class Running(cl.OptionCategory):
+class Running(cl.SelectableCategory):
     @classmethod
-    def options_defines(cls):
+    def selectables_defines(cls):
         return []
 
     @classmethod
@@ -316,46 +341,186 @@ class Running(cl.OptionCategory):
         return Main
 
 categories_templates = [Running, Example]
-categories, arguments = cl.Parser(categories_templates).parse(["--example"])
-categories[Running].run_with(categories, arguments)
+state = cl.Parser(categories_templates).resolve(["--example"])
+state.run_parameters.categories[Running].run_with(state.run_parameters)
 ```
+
+## Subcommands / Command Tree
+
+When your CLI has verbs (`myapp compose up`, `git worktree add`, ...), use `Command` instead of
+`Option`. A `Command`'s `parser_define()` declares the grammar one level down, and `Parser.parse()`
+walks the whole tree by itself — no manual recursive `parse()` calls needed.
+
+```python
+import sys
+import rudesheim.command_line as cl
+
+class Up(cl.Command):
+    @classmethod
+    def run_with(cls, run_parameters):
+        print(f"up {list(run_parameters.arguments)}")
+
+class Down(cl.Command):
+    @classmethod
+    def run_with(cls, run_parameters):
+        print(f"down {list(run_parameters.arguments)}")
+
+class ComposeSubcommand(cl.SelectableCategory):
+    @classmethod
+    def selectables_defines(cls):
+        return [Up.tie(("up",), "start containers"), Down.tie(("down",), "stop containers")]
+
+    @classmethod
+    def default(cls):
+        # No subcommand typed here -> defer to Compose's own run_with(),
+        # not Up's. See "Terminal" below.
+        return cl.Terminal
+
+class Compose(cl.Command):
+    # REQUIRED to have subcommands: declare the grammar one level down
+    @classmethod
+    def parser_define(cls):
+        return cl.Parser([ComposeSubcommand])
+
+    # FREE: only needed if "compose" with no subcommand should do something
+    # of its own, instead of raising RunWithNotImplemented
+    @classmethod
+    def run_with(cls, run_parameters):
+        print("usage: compose [up|down]")
+
+class RootSubcommand(cl.SelectableCategory):
+    @classmethod
+    def selectables_defines(cls):
+        return [Compose.tie(("compose",), "manage compose stacks")]
+
+    @classmethod
+    def default(cls):
+        # No token typed at all -> a real Command, not Terminal. There is no
+        # enclosing Command here for Terminal to defer to.
+        return Compose
+
+cl.Parser([RootSubcommand]).parse(sys.argv[1:])
+```
+
+```text
+$ myapp compose up web db
+up ['web', 'db']
+
+$ myapp compose
+usage: compose [up|down]
+
+$ myapp
+usage: compose [up|down]
+```
+
+Notes on how dispatch works:
+
+- Every time a category's value is decided — whether by an explicit match or by `default()` — its
+  `decided_for(category, state)` runs. `Command` overrides this to recurse into its own
+  `parser_define()`, then falls back to being the terminal itself if that recursion didn't produce a
+  deeper one; `Option` and `Terminal` are no-ops. `run_with(run_parameters)` is then called **exactly
+  once**, on whichever `Command` this settles on.
+- Giving a Command-type category's `default()` a real `Command` (`RootSubcommand` above, defaulting to
+  `Compose`) makes bare invocation behave like typing that Command explicitly — the same idea as `git
+  stash` defaulting to `git stash push`.
+- Giving it `cl.Terminal` instead (`ComposeSubcommand` above) means "no subcommand typed here — defer
+  to the *enclosing* Command's own `run_with()`" (bare `compose` runs `Compose.run_with()`, not
+  `Up.run_with()`). `Terminal` only makes sense for a category nested inside some other Command's
+  `parser_define()` — there is no enclosing Command for a `Parser`'s own top-level category to defer
+  to, so give that one a real `Command` instead, as `RootSubcommand` does.
+- Categories declared above a `Command` (e.g. a global `--context` option declared alongside
+  `RootSubcommand`) stay visible in `run_parameters.categories` all the way down; categories declared
+  only inside a nested `parser_define()` are only visible from that point down.
+- Forgetting to override `run_with` on a `Command` that does end up selected raises
+  `RunWithNotImplemented`, not a silent no-op.
+- A single `Parser`'s category list should declare at most one Command-type category. `Option`-type
+  categories can coexist freely (they just sit independently in `run_parameters.categories`), but two
+  Command-type categories both needing `default()` at the same level have no defined precedence between
+  them — whichever is processed later in the list silently overwrites the other's contribution to
+  `.terminals`. This isn't enforced at runtime, just avoid it.
+
+This exact example is also a runnable file:
+
+```bash
+python3 examples/compose.py compose up web db
+python3 examples/compose.py compose
+python3 examples/compose.py
+```
+
+## `RunParameters`
+
+Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
+
+- `user_datas`: whatever you passed as the second argument to `resolve`/`parse`/`parse_from_default`
+  (or `[]` if you passed nothing). Use it to thread caller-owned, cross-cutting state — logging,
+  a dry-run flag, an accumulator — down to every `run_with(...)` call without a global variable.
+- `categories`: `{Category -> selected Option/Command}`, merged from the root of the tree down to
+  wherever parsing stopped.
+- `arguments`: the remaining positional arguments at that point.
 
 ## Required vs Free (Contract)
 
-### `Option`
+### `Selectable` (common base of `Option` and `Command`)
 
-- `[Provides]` `tie(keys, description)`: create option definition
+- `[Provides]` `tie(keys, description)`: create a selectable definition
 - `[Provides]` `basic_tie(keys)`: use class name as description
 - `[Provides]` `value_amount()`: default `0`
-- `[Provides]` `with_value(strings)`: default returns class itself
+- `[Provides]` `with_value(strings)`: default returns the class itself
+- `[Provides]` `run_with(run_parameters)`: default raises `RunWithNotImplemented`
+- `[Free]` override `run_with(run_parameters)` to make this selectable executable
+- `[Provides]` `decided_for(category, state)`: internal - runs once, right when this selectable becomes
+  a category's value (matched or defaulted). Default no-op; `Command` overrides it - you should not
+  need to touch this directly, see "Subcommands / Command Tree" above
+
+### `Option`
+
 - `[Required]` nothing for no-value flags
 - `[Required]` implement `value_amount()` and `with_value(strings)` only when the option takes a value
 - `[Free]` add behavior methods such as `execute()`, `example()`, `apply()`
+- `[Free]` override `run_with(run_parameters)` if this option is meant to be the entry point of a flat,
+  subcommand-less category (see "Quick Start")
 
-### `OptionCategory`
+### `Command`
 
-- `[Provides]` category key type used in parse result map
+- `[Provides]` `parser_define()`: default returns an empty `Parser([])` (a leaf with no subcommands)
+- `[Required]` override `parser_define()` to declare a category of further subcommands
+- `[Required]` override `run_with(run_parameters)` on any `Command` that can end up being the deepest
+  selected one — otherwise `Parser.parse()` raises `RunWithNotImplemented` when it gets there
+- `[Provides]` `decided_for(category, state)`: recurses into `parser_define()`, falling back to this
+  Command itself if that recursion settled on nothing deeper
+- see "Subcommands / Command Tree" above
+
+### `Terminal`
+
+- A ready-to-use `Selectable` with nothing overridden. Its only purpose is to be a Command-type
+  category's `default()` when "nothing typed here" should defer to the *enclosing* Command's own
+  `run_with()` instead of recursing further - see "Subcommands / Command Tree" above. Meaningless
+  anywhere else (as an explicit `tie()` target, or as a `Parser`'s own top-level category's `default()`
+  - there is no enclosing Command there to defer to).
+
+### `SelectableCategory`
+
+- `[Provides]` category key type used in the parse result map
 - `[Provides]` conflict enforcement: one selected option per category
-- `[Required]` implement `options_defines()`: selectable definitions in this category
-- `[Required]` implement `default()`: fallback option when none is given
-- `[Free]` add helper methods for category-level policy
+- `[Provides]` `default()`: raises `DefaultDoesNotExist` if `selectables_defines()` is empty, otherwise
+  returns the first declared selectable
+- `[Required]` implement `selectables_defines()`: selectable definitions in this category
+- `[Free]` override `default()` explicitly instead of relying on "first declared wins" (recommended)
 
 ### `Parser`
 
-- `[Provides]` `parse(arguments) -> (categories, remaining_args)`
-- `[Provides]` `parse_from_default()`: parse from `sys.argv[1:]`
+- `[Provides]` `resolve(arguments, user_datas=None) -> state`: parse without running anything;
+  `state.run_parameters` holds `categories`/`arguments`/`user_datas`
+- `[Provides]` `parse(arguments, user_datas=None)`: resolve, then call `run_with(run_parameters)`
+  exactly once on the deepest matched `Command`, and return its result
+- `[Provides]` `parse_from_default(user_datas=None)`: same as `parse(sys.argv[1:], user_datas)`
 - `[Required]` pass a list of category classes to `Parser(...)`
 
-### `OptionForRun` (optional pattern)
+### `OptionForPrint` / `BasicHelp` / `BasicVersion` (optional)
 
-- `[Provides]` convention class for executable entry option
-- `[Required]` implement `run_with(categories, arguments)` if you use this pattern
-
-### `BasicHelp` / `BasicVersion` (optional)
-
-- `[Provides]` prebuilt behavior for help/version output
-- `[Free]` override `overview()`, `usage()`, `explanation()` for help text
-- `[Free]` override `product_name()`, `numbers()` for version text
+- `[Provides]` `OptionForPrint.run_with(run_parameters)`: prints `print_string()`
+- `[Free]` override `overview()`, `usage()`, `explanation()` for help text (`BasicHelp`)
+- `[Free]` override `product_name()`, `numbers()` for version text (`BasicVersion`)
 
 ## Help / Version
 
