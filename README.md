@@ -4,6 +4,18 @@
 Its primary goal is not "parse string options into values" but
 "select objects that own behavior".
 
+## Version 3.0 — Breaking Change Notice
+
+This is version 3.0, and it is **not compatible with 2.0**. `Parser.resolve()` now returns a
+`RunParameters` directly instead of an internal wrapper object. Code written as
+`state.run_parameters.categories[...]` (or `.arguments`) must become `state.categories[...]`
+(or `.arguments`) — `state` (whatever you called the return value of `resolve()`) *is* the
+`RunParameters` now, not something holding one. The wrapper type this removes (`ParseState`) was
+never documented as something you construct yourself, but was technically importable from the
+public module; it no longer is — it now lives under `rudesheim.command_line.private`, which was
+already documented as internal-only. `Parser.parse()` is unaffected.
+Code written against 2.0 needs to be updated before it will run on 3.0.
+
 ## Version 2.0 — Breaking Change Notice
 
 This is version 2.0, and it is **not compatible with 1.0**. `Parser.parse()` no longer returns a
@@ -84,7 +96,7 @@ myapp compose up -d web db
 ## Two Ways To Drive It
 
 - **`Parser.resolve(arguments, user_datas=None)`** always works, and never executes anything.
-  It just returns a `state` whose `state.run_parameters` holds `categories`, `arguments`, and `user_datas`.
+  It just returns a `RunParameters` holding `categories`, `arguments`, and `user_datas`.
   You dispatch behavior yourself, typically with one line at the end (see "Quick Start" below).
 - **`Parser.parse(arguments, user_datas=None)`** additionally walks a `Command` tree (declared via
   `parser_define()`) and calls `run_with(run_parameters)` exactly once on whichever `Command` ends up
@@ -146,9 +158,8 @@ class Mode(cl.SelectableCategory):
     def default(this):
         return DryRun
 
-state = cl.Parser([Mode]).resolve(["--apply"])
 # FREE: caller sends behavior message to selected object
-state.run_parameters.categories[Mode].execute()
+cl.Parser([Mode]).resolve(["--apply"]).categories[Mode].execute()
 ```
 
 No `if/elif` by option value is needed in the caller.
@@ -237,13 +248,13 @@ class ReportStyle(cl.SelectableCategory):
     def default(this):
         return Quiet
 
-state = cl.Parser([Mode, ReportStyle]).resolve(["--apply", "--verbose", "A", "B"])
-categories = state.run_parameters.categories
+run_parameters = cl.Parser([Mode, ReportStyle]).resolve(["--apply", "--verbose", "A", "B"])
+categories = run_parameters.categories
 mode = categories[Mode]
 report = categories[ReportStyle]
 
 # shared flow (common processing)
-items = state.run_parameters.arguments
+items = run_parameters.arguments
 report.on_start(items)        # second category behavior
 mode.before_batch(items)      # option-specific behavior
 for item in items:            # common loop
@@ -289,9 +300,9 @@ class DepthCategory(cl.SelectableCategory):
     def default(this):
         return Depth("1")
 
-state = cl.Parser([DepthCategory]).resolve(["--depth=3", "target"])
-depth = state.run_parameters.categories[DepthCategory].as_int()  # 3
-remaining = state.run_parameters.arguments  # ["target"]
+run_parameters = cl.Parser([DepthCategory]).resolve(["--depth=3", "target"])
+depth = run_parameters.categories[DepthCategory].as_int()  # 3
+remaining = run_parameters.arguments  # ["target"]
 ```
 
 ## Quick Start
@@ -341,8 +352,8 @@ class Running(cl.SelectableCategory):
         return Main
 
 categories_templates = [Running, Example]
-state = cl.Parser(categories_templates).resolve(["--example"])
-state.run_parameters.categories[Running].run_with(state.run_parameters)
+run_parameters = cl.Parser(categories_templates).resolve(["--example"])
+run_parameters.categories[Running].run_with(run_parameters)
 ```
 
 ## Subcommands / Command Tree
@@ -429,7 +440,7 @@ Notes on how dispatch works:
   `parser_define()` — there is no enclosing Command for a `Parser`'s own top-level category to defer
   to, so give that one a real `Command` instead, as `RootSubcommand` does.
 - Categories declared above a `Command` (e.g. a global `--context` option declared alongside
-  `RootSubcommand`) stay visible in `run_parameters.categories` all the way down; categories declared
+  `RootSubcommand`) stay visible in the resulting `RunParameters.categories` all the way down; categories declared
   only inside a nested `parser_define()` are only visible from that point down.
 - Forgetting to override `run_with` on a `Command` that does end up selected raises
   `RunWithNotImplemented`, not a silent no-op.
@@ -509,8 +520,8 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 
 ### `Parser`
 
-- `[Provides]` `resolve(arguments, user_datas=None) -> state`: parse without running anything;
-  `state.run_parameters` holds `categories`/`arguments`/`user_datas`
+- `[Provides]` `resolve(arguments, user_datas=None) -> RunParameters`: parse without running
+  anything; the returned `RunParameters` holds `categories`/`arguments`/`user_datas`
 - `[Provides]` `parse(arguments, user_datas=None)`: resolve, then call `run_with(run_parameters)`
   exactly once on the deepest matched `Command`, and return its result
 - `[Provides]` `parse_from_default(user_datas=None)`: same as `parse(sys.argv[1:], user_datas)`

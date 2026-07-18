@@ -254,39 +254,12 @@ class RunParameters:
 		this.categories = categories
 		this.arguments = arguments
 
-class ParseState:
-	"""Internal accumulator threaded through Parser.resolve()'s recursion.
-	Returned to you by resolve() (as `state`, with `state.run_parameters`
-	being what you actually want) - you don't normally construct this
-	yourself.
-
-	- run_parameters: a RunParameters (see above); its `.categories` dict is
-	  mutated in place as parsing proceeds.
-	- opts: raw (flag, value) pairs straight out of getopt, consumed only by
-	  Option.parse_with in private/__init__.py. Not meaningful to user code.
-	- terminals: `[]`, or a single-element list holding the Command selected
-	  as the deepest match so far - see Parser.parse()'s docstring for how
-	  this gets resolved.
-	"""
-
-	def __init__( this, run_parameters, opts, terminals ):
-		this.run_parameters = run_parameters
-		this.opts = opts
-		this.terminals = terminals
-
-	@classmethod
-	def following( this, parse_state, arguments, terminals ):
-		"""Internal: build the next ParseState in the chain, carrying
-		parse_state's user_datas/categories/opts forward unchanged while
-		replacing arguments/terminals. Used by private/__init__.py's
-		parse_with implementations - see that module if you are extending
-		the parsing machinery itself, not just using it."""
-		return ParseState \
-		(
-			RunParameters( parse_state.run_parameters.user_datas, parse_state.run_parameters.categories, arguments ),
-			parse_state.opts,
-			terminals
-		)
+	def following( this, arguments ):
+		"""Internal: a copy of this RunParameters with `arguments` replaced,
+		user_datas/categories carried over unchanged. Used by
+		private.ParseState.following() to build the next step of the parse
+		chain without that internal class needing to import this one."""
+		return RunParameters( this.user_datas, this.categories, arguments )
 
 class Parser:
 	"""Parses one level of a command line against a list of SelectableCategory
@@ -297,14 +270,14 @@ class Parser:
 
 	def resolve( this, arguments, user_datas = None ):
 		"""Parse `arguments` (a list of `str`, no program name) and return a
-		ParseState - never runs anything, always safe to call.
+		RunParameters - never runs anything, always safe to call.
 
-			state = cl.Parser( [ Mode ] ).resolve( [ "--apply", "target" ] )
-			state.run_parameters.categories[ Mode ].execute()   # you drive it
+			run_parameters = cl.Parser( [ Mode ] ).resolve( [ "--apply", "target" ] )
+			run_parameters.categories[ Mode ].execute()   # you drive it
 
 		Recurses into a Command's own parser_define() automatically when a
 		subcommand token matches, merging that Command's categories into the
-		returned state (see RunParameters.categories).
+		returned RunParameters (see RunParameters.categories).
 
 		Caveats:
 		- Raises UndefinedOptionSpecified for an unrecognized flag, and
@@ -313,9 +286,19 @@ class Parser:
 		- A GetoptError that is not an "unrecognized option" error (e.g. a
 		  value-taking option given with no value) is currently swallowed:
 		  this method returns `None` instead of raising or returning a
-		  ParseState. This is a known, not-yet-fixed quirk - check for `None`
-		  if it matters to you.
+		  RunParameters. This is a known, not-yet-fixed quirk - check for
+		  `None` if it matters to you.
 		"""
+		state = this._resolve( arguments, user_datas )
+		return None if state is None else state.run_parameters
+
+	def _resolve( this, arguments, user_datas = None ):
+		"""Internal: same as resolve(), but returns the full
+		private.ParseState (carrying `.opts`/`.terminals` alongside
+		`.run_parameters`) instead of just the RunParameters. Used by parse()
+		and by private.Command.decided_for's recursion into a nested
+		Command's own parser_define().resolve() - both need `.terminals`,
+		which the public resolve() intentionally does not expose."""
 		user_datas = [] if user_datas is None else user_datas
 		selectables = {}
 		keys_specs = ( [], [] )
@@ -335,7 +318,7 @@ class Parser:
 		try:
 			getopt_result = go.getopt( arguments, "".join( keys_specs[0] ), keys_specs[1] )
 			if 0 == len( selectables ):
-				return ParseState( RunParameters( user_datas, {}, getopt_result[1] ), [], [] )
+				return private.ParseState( RunParameters( user_datas, {}, getopt_result[1] ), [], [] )
 
 			state = ft.reduce \
 			(
@@ -346,7 +329,7 @@ class Parser:
 					state
 				),
 				sorted( [ key for key in selectables ], key = lambda each: each.parse_order() ),
-				ParseState( RunParameters( user_datas, {}, getopt_result[1] ), getopt_result[0], [] )
+				private.ParseState( RunParameters( user_datas, {}, getopt_result[1] ), getopt_result[0], [] )
 			)
 
 			for category in this.categories_templates_:
@@ -376,7 +359,7 @@ class Parser:
 		terminal to call and this raises `IndexError`. Use resolve() instead
 		for flat, Command-less CLIs (see README "Quick Start").
 		"""
-		state = this.resolve( arguments, user_datas )
+		state = this._resolve( arguments, user_datas )
 		return state.terminals[0].run_with( state.run_parameters )
 
 	def parse_from_default( this, user_datas = None ):

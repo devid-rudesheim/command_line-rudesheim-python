@@ -48,8 +48,8 @@ class Running(cl.SelectableCategory):
 
 
 def main():
-    state = cl.Parser([Running, Mode]).resolve(["--apply", "target"])
-    state.run_parameters.categories[Running].run_with(state.run_parameters)
+    run_parameters = cl.Parser([Running, Mode]).resolve(["--apply", "target"])
+    run_parameters.categories[Running].run_with(run_parameters)
 
 
 if __name__ == "__main__":
