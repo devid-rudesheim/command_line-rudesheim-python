@@ -116,25 +116,25 @@ import rudesheim.command_line as cl
 class DryRun(cl.Option):
     # FREE: user-defined behavior
     @classmethod
-    def execute(cls):
+    def execute(this):
         print("dry run")
 
 class Apply(cl.Option):
     # FREE: user-defined behavior
     @classmethod
-    def execute(cls):
+    def execute(this):
         run_apply()
 
 class Delete(cl.Option):
     # FREE: user-defined behavior
     @classmethod
-    def execute(cls):
+    def execute(this):
         run_delete()
 
 class Mode(cl.SelectableCategory):
     # REQUIRED (practical): declare selectable options in this category
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [
             DryRun.tie(("d", "dry-run"), "execute without changes"),
             Apply.tie(("a", "apply"), "apply changes"),
@@ -143,7 +143,7 @@ class Mode(cl.SelectableCategory):
 
     # REQUIRED (practical): declare fallback when no option is given
     @classmethod
-    def default(cls):
+    def default(this):
         return DryRun
 
 state = cl.Parser([Mode]).resolve(["--apply"])
@@ -163,78 +163,78 @@ import rudesheim.command_line as cl
 
 class DryRun(cl.Option):
     @classmethod
-    def before_batch(cls, items):
+    def before_batch(this, items):
         print(f"[dry-run] check {len(items)} items")
 
     @classmethod
-    def process_item(cls, item):
+    def process_item(this, item):
         print(f"[dry-run] skip {item}")
 
     @classmethod
-    def after_batch(cls):
+    def after_batch(this):
         print("[dry-run] done")
 
 class Apply(cl.Option):
     @classmethod
-    def before_batch(cls, items):
+    def before_batch(this, items):
         open_transaction()
 
     @classmethod
-    def process_item(cls, item):
+    def process_item(this, item):
         apply_item(item)
 
     @classmethod
-    def after_batch(cls):
+    def after_batch(this):
         commit_transaction()
 
 class Mode(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [
             DryRun.tie(("d", "dry-run"), "do not mutate"),
             Apply.tie(("a", "apply"), "apply changes"),
         ]
 
     @classmethod
-    def default(cls):
+    def default(this):
         return DryRun
 
 class Quiet(cl.Option):
     @classmethod
-    def on_start(cls, items):
+    def on_start(this, items):
         pass
 
     @classmethod
-    def on_item(cls, item):
+    def on_item(this, item):
         pass
 
     @classmethod
-    def on_finish(cls):
+    def on_finish(this):
         pass
 
 class Verbose(cl.Option):
     @classmethod
-    def on_start(cls, items):
+    def on_start(this, items):
         print(f"[verbose] start {len(items)} items")
 
     @classmethod
-    def on_item(cls, item):
+    def on_item(this, item):
         print(f"[verbose] item {item}")
 
     @classmethod
-    def on_finish(cls):
+    def on_finish(this):
         print("[verbose] finish")
 
 class ReportStyle(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [
             Quiet.tie(("q", "quiet"), "minimal output"),
             Verbose.tie(("V", "verbose"), "verbose output"),
         ]
 
     @classmethod
-    def default(cls):
+    def default(this):
         return Quiet
 
 state = cl.Parser([Mode, ReportStyle]).resolve(["--apply", "--verbose", "A", "B"])
@@ -263,30 +263,30 @@ When an option receives a value, implement `value_amount()` and `with_value(stri
 import rudesheim.command_line as cl
 
 class Depth(cl.Option):
-    def __init__(self, text):
-        self.text = text
+    def __init__(this, text):
+        this.text = text
 
     # REQUIRED for value option
     @classmethod
-    def value_amount(cls):
+    def value_amount(this):
         return 1
 
     # REQUIRED for value option
     @classmethod
-    def with_value(cls, strings):
-        return cls(strings)
+    def with_value(this, strings):
+        return this(strings)
 
     # FREE: domain behavior
-    def as_int(self):
-        return int(self.text)
+    def as_int(this):
+        return int(this.text)
 
 class DepthCategory(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [Depth.tie(("d", "depth"), "depth value")]
 
     @classmethod
-    def default(cls):
+    def default(this):
         return Depth("1")
 
 state = cl.Parser([DepthCategory]).resolve(["--depth=3", "target"])
@@ -305,39 +305,39 @@ import rudesheim.command_line as cl
 class Disabled(cl.Option):
     # FREE: user-defined behavior
     @classmethod
-    def example(cls):
+    def example(this):
         print("Disable")
 
 class Enabled(cl.Option):
     # FREE: user-defined behavior
     @classmethod
-    def example(cls):
+    def example(this):
         print("Enable")
 
 class Example(cl.SelectableCategory):
     # REQUIRED (practical)
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [Enabled.tie(("e", "example"), "for example")]
 
     # REQUIRED (practical)
     @classmethod
-    def default(cls):
+    def default(this):
         return Disabled
 
 class Main(cl.Option):
     # FREE: give the entry-point option a run_with of its own
     @classmethod
-    def run_with(cls, run_parameters):
+    def run_with(this, run_parameters):
         run_parameters.categories[Example].example()
 
 class Running(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return []
 
     @classmethod
-    def default(cls):
+    def default(this):
         return Main
 
 categories_templates = [Running, Example]
@@ -357,21 +357,21 @@ import rudesheim.command_line as cl
 
 class Up(cl.Command):
     @classmethod
-    def run_with(cls, run_parameters):
+    def run_with(this, run_parameters):
         print(f"up {list(run_parameters.arguments)}")
 
 class Down(cl.Command):
     @classmethod
-    def run_with(cls, run_parameters):
+    def run_with(this, run_parameters):
         print(f"down {list(run_parameters.arguments)}")
 
 class ComposeSubcommand(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [Up.tie(("up",), "start containers"), Down.tie(("down",), "stop containers")]
 
     @classmethod
-    def default(cls):
+    def default(this):
         # No subcommand typed here -> defer to Compose's own run_with(),
         # not Up's. See "Terminal" below.
         return cl.Terminal
@@ -379,22 +379,22 @@ class ComposeSubcommand(cl.SelectableCategory):
 class Compose(cl.Command):
     # REQUIRED to have subcommands: declare the grammar one level down
     @classmethod
-    def parser_define(cls):
+    def parser_define(this):
         return cl.Parser([ComposeSubcommand])
 
     # FREE: only needed if "compose" with no subcommand should do something
     # of its own, instead of raising RunWithNotImplemented
     @classmethod
-    def run_with(cls, run_parameters):
+    def run_with(this, run_parameters):
         print("usage: compose [up|down]")
 
 class RootSubcommand(cl.SelectableCategory):
     @classmethod
-    def selectables_defines(cls):
+    def selectables_defines(this):
         return [Compose.tie(("compose",), "manage compose stacks")]
 
     @classmethod
-    def default(cls):
+    def default(this):
         # No token typed at all -> a real Command, not Terminal. There is no
         # enclosing Command here for Terminal to defer to.
         return Compose
