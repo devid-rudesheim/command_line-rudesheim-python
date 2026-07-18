@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
 
 import rudesheim.command_line as cl
+import rudesheim.command_line.private as clp
 
 class Option_0( cl.Option ):
 	pass
@@ -73,8 +74,8 @@ class ParserTests( ut.TestCase ):
 
 		result = parser.resolve([] )
 
-		this.assertEqual( 0, len( result.run_parameters.categories ) )
-		this.assertEqual( 0, len( result.run_parameters.arguments ) )
+		this.assertEqual( 0, len( result.categories ) )
+		this.assertEqual( 0, len( result.arguments ) )
 
 	def test_1( this ):
 		parser = cl.Parser( [] )
@@ -82,10 +83,10 @@ class ParserTests( ut.TestCase ):
 		arguments = [ 'one', 'two' ]
 		result = parser.resolve(arguments )
 
-		this.assertEqual( 0, len( result.run_parameters.categories ) )
-		this.assertEqual( 2, len( result.run_parameters.arguments ) )
+		this.assertEqual( 0, len( result.categories ) )
+		this.assertEqual( 2, len( result.arguments ) )
 
-		this.assertEqual( arguments, result.run_parameters.arguments )
+		this.assertEqual( arguments, result.arguments )
 
 	def test_2( this ):
 		parser = cl.Parser( [] )
@@ -106,40 +107,40 @@ class ParserTests( ut.TestCase ):
 		arguments = [ 'one' ]
 		result = parser.resolve(arguments )
 
-		this.assertEqual( 1, len( result.run_parameters.categories ) )
-		this.assertEqual( 1, len( result.run_parameters.arguments ) )
+		this.assertEqual( 1, len( result.categories ) )
+		this.assertEqual( 1, len( result.arguments ) )
 
-		this.assertEqual( arguments, result.run_parameters.arguments )
+		this.assertEqual( arguments, result.arguments )
 
 	def test_5( this ):
 		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.resolve([] )
 
-		this.assertEqual( 1, len( result.run_parameters.categories ) )
-		this.assertEqual( 0, len( result.run_parameters.arguments ) )
+		this.assertEqual( 1, len( result.categories ) )
+		this.assertEqual( 0, len( result.arguments ) )
 
-		this.assertEqual( { Category_0 : Option_0 }, result.run_parameters.categories )
+		this.assertEqual( { Category_0 : Option_0 }, result.categories )
 
 	def test_6( this ):
 		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.resolve([ "-v" ] )
 
-		this.assertEqual( 1, len( result.run_parameters.categories ) )
-		this.assertEqual( 0, len( result.run_parameters.arguments ) )
+		this.assertEqual( 1, len( result.categories ) )
+		this.assertEqual( 0, len( result.arguments ) )
 
-		this.assertEqual( { Category_0 : Option_1 }, result.run_parameters.categories )
+		this.assertEqual( { Category_0 : Option_1 }, result.categories )
 
 	def test_7( this ):
 		parser = cl.Parser( [ Category_0 ] )
 
 		result = parser.resolve([ "--version" ] )
 
-		this.assertEqual( 1, len( result.run_parameters.categories ) )
-		this.assertEqual( 0, len( result.run_parameters.arguments ) )
+		this.assertEqual( 1, len( result.categories ) )
+		this.assertEqual( 0, len( result.arguments ) )
 
-		this.assertEqual( { Category_0 : Option_1 }, result.run_parameters.categories )
+		this.assertEqual( { Category_0 : Option_1 }, result.categories )
 
 	def test_8( this ):
 		parser = cl.Parser( [ Category_0 ] )
@@ -147,26 +148,23 @@ class ParserTests( ut.TestCase ):
 
 		result = parser.resolve([ "--version", argument ] )
 
-		this.assertEqual( 1, len( result.run_parameters.categories ) )
-		this.assertEqual( 1, len( result.run_parameters.arguments ) )
+		this.assertEqual( 1, len( result.categories ) )
+		this.assertEqual( 1, len( result.arguments ) )
 
-		this.assertEqual( { Category_0 : Option_1 }, result.run_parameters.categories )
-		this.assertEqual( argument, result.run_parameters.arguments[0] )
+		this.assertEqual( { Category_0 : Option_1 }, result.categories )
+		this.assertEqual( argument, result.arguments[0] )
 
 	def test_9( this ):
 		parser = cl.Parser( [ Category_0 ] )
 
-		result = parser.resolve([ "-h" ] )
-
-		this.assertEqual( { Category_0 : Option_2 }, result.run_parameters.categories )
+		this.assertEqual( { Category_0 : Option_2 }, parser.resolve([ "-h" ] ).categories )
 
 	def test_10( this ):
 		parser = cl.Parser( [ Category_1 ] )
 
 		argument = "value"
-		result = parser.resolve([ "-d", argument ] )
 
-		this.assertEqual( argument, result.run_parameters.categories[Category_1].value() )
+		this.assertEqual( argument, parser.resolve([ "-d", argument ] ).categories[Category_1].value() )
 
 	def test_11( this ):
 		parser = cl.Parser( [ Category_0, Category_1 ] )
@@ -174,8 +172,8 @@ class ParserTests( ut.TestCase ):
 		argument = "value"
 		result = parser.resolve([ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result.run_parameters.categories[Category_0] )
-		this.assertEqual( argument, result.run_parameters.categories[Category_1].value() )
+		this.assertEqual( Option_2, result.categories[Category_0] )
+		this.assertEqual( argument, result.categories[Category_1].value() )
 
 	def test_12( this ):
 		parser = cl.Parser( [ Category_1, Category_0 ] )
@@ -183,8 +181,8 @@ class ParserTests( ut.TestCase ):
 		argument = "value"
 		result = parser.resolve([ "--help", "--depth", argument ] )
 
-		this.assertEqual( Option_2, result.run_parameters.categories[Category_0] )
-		this.assertEqual( argument, result.run_parameters.categories[Category_1].value() )
+		this.assertEqual( Option_2, result.categories[Category_0] )
+		this.assertEqual( argument, result.categories[Category_1].value() )
 
 class Version_0( cl.BasicVersion ):
 
@@ -603,27 +601,27 @@ class CommandParserTests( ut.TestCase ):
 		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
 		result = parser.resolve([ "build", "--release", "target-a" ] )
 
-		this.assertEqual( Build, result.run_parameters.categories[ RunningCategory ] )
-		this.assertEqual( BuildRelease, result.run_parameters.categories[ BuildModeCategory ] )
-		this.assertEqual( Silent, result.run_parameters.categories[ GlobalCategory ] )
-		this.assertEqual( [ "target-a" ], result.run_parameters.arguments )
+		this.assertEqual( Build, result.categories[ RunningCategory ] )
+		this.assertEqual( BuildRelease, result.categories[ BuildModeCategory ] )
+		this.assertEqual( Silent, result.categories[ GlobalCategory ] )
+		this.assertEqual( [ "target-a" ], result.arguments )
 
 	def test_1( this ):
 		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
 		result = parser.resolve([ "--verbose", "install", "--depth", "3", "pkg-a" ] )
 
-		this.assertEqual( Install, result.run_parameters.categories[ RunningCategory ] )
-		this.assertEqual( "3", result.run_parameters.categories[ InstallDepthCategory ].value() )
-		this.assertEqual( Verbose, result.run_parameters.categories[ GlobalCategory ] )
-		this.assertEqual( [ "pkg-a" ], result.run_parameters.arguments )
+		this.assertEqual( Install, result.categories[ RunningCategory ] )
+		this.assertEqual( "3", result.categories[ InstallDepthCategory ].value() )
+		this.assertEqual( Verbose, result.categories[ GlobalCategory ] )
+		this.assertEqual( [ "pkg-a" ], result.arguments )
 
 	def test_2( this ):
 		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
 		result = parser.resolve([ "pkg-a" ] )
 
-		this.assertEqual( Main, result.run_parameters.categories[ RunningCategory ] )
-		this.assertEqual( Silent, result.run_parameters.categories[ GlobalCategory ] )
-		this.assertEqual( [ "pkg-a" ], result.run_parameters.arguments )
+		this.assertEqual( Main, result.categories[ RunningCategory ] )
+		this.assertEqual( Silent, result.categories[ GlobalCategory ] )
+		this.assertEqual( [ "pkg-a" ], result.arguments )
 
 class Detach( cl.Option ):
 	pass
@@ -715,9 +713,7 @@ class TerminalDispatchTests( ut.TestCase ):
 		log = []
 		parser = cl.Parser( [ ContextCategory, RootSubcommand ] )
 
-		result = parser.parse( [ "--context", "prod", "compose", "up", "-d", "web", "db" ], log )
-
-		this.assertEqual( "up-ran", result )
+		this.assertEqual( "up-ran", parser.parse( [ "--context", "prod", "compose", "up", "-d", "web", "db" ], log ) )
 		this.assertEqual( 1, len( log ) )
 		this.assertEqual( ( "up", Detach, [ "web", "db" ] ), log[0] )
 
@@ -726,17 +722,15 @@ class TerminalDispatchTests( ut.TestCase ):
 
 		state = parser.resolve([ "--context", "prod", "compose", "up" ] )
 
-		this.assertEqual( "prod", state.run_parameters.categories[ ContextCategory ].value() )
-		this.assertEqual( Compose, state.run_parameters.categories[ RootSubcommand ] )
-		this.assertEqual( Up, state.run_parameters.categories[ ComposeSubcommand ] )
+		this.assertEqual( "prod", state.categories[ ContextCategory ].value() )
+		this.assertEqual( Compose, state.categories[ RootSubcommand ] )
+		this.assertEqual( Up, state.categories[ ComposeSubcommand ] )
 
 	def test_fallback_terminal_is_nearest_matched_ancestor( this ):
 		log = []
 		parser = cl.Parser( [ ContextCategory, RootSubcommand ] )
 
-		result = parser.parse( [ "--context", "prod", "compose" ], log )
-
-		this.assertEqual( "compose-ran", result )
+		this.assertEqual( "compose-ran", parser.parse( [ "--context", "prod", "compose" ], log ) )
 		this.assertEqual( 1, len( log ) )
 		# ComposeSubcommand.default() は cl.Terminal (潜らず親へ委譲する印) なので、
 		# categories には Terminal が入り、Compose 自身の run_with が実行される。
@@ -751,9 +745,7 @@ class TerminalDispatchTests( ut.TestCase ):
 		log = []
 		parser = cl.Parser( [ ContextCategory, RootSubcommand ] )
 
-		result = parser.parse( [], log )
-
-		this.assertEqual( "compose-ran", result )
+		this.assertEqual( "compose-ran", parser.parse( [], log ) )
 		this.assertEqual( 1, len( log ) )
 		this.assertEqual( ( "compose", cl.Terminal, [] ), log[0] )
 
@@ -794,19 +786,19 @@ class NoopCategory( cl.SelectableCategory ):
 class DecidedForTests( ut.TestCase ):
 
 	def test_terminal_decided_for_is_inert_no_op( this ):
-		state = cl.ParseState( cl.RunParameters( [], {}, [] ), [], [] )
+		state = clp.ParseState( cl.RunParameters( [], {}, [] ), [], [] )
 
-		result = cl.Terminal.parse_identifier().decided_for( None, state, cl.Terminal )
-
-		this.assertIs( state, result )
+		this.assertIs( state, cl.Terminal.parse_identifier().decided_for( None, state, cl.Terminal ) )
 
 	def test_category_with_no_declared_selectables_always_dispatches_to_its_default( this ):
 		# selectables_defines() が [] だと明示的な match が原理上不可能なので、
 		# default() を実在の Command に override すれば、何を型入力しても常に
 		# そのCommandへ落ちる - Quick Start の Running/Main と同じ縮退形。
-		result = cl.Parser( [ NoopCategory, AlwaysCategory ] ).parse( [ "compose", "up", "web" ] )
-
-		this.assertEqual( ( "always-ran", [ "compose", "up", "web" ] ), result )
+		this.assertEqual \
+		(
+			( "always-ran", [ "compose", "up", "web" ] ),
+			cl.Parser( [ NoopCategory, AlwaysCategory ] ).parse( [ "compose", "up", "web" ] )
+		)
 
 class Plain( cl.Selectable ):
 	pass
@@ -845,8 +837,7 @@ class OptionOnlyCategoryWithBaseDefault( cl.SelectableCategory ):
 class SelectableProtocolTests( ut.TestCase ):
 
 	def test_bare_selectable_is_reachable_only_via_default( this ):
-		result = cl.Parser( [ PlainCategory ] ).resolve( [] )
-		this.assertEqual( Plain, result.run_parameters.categories[ PlainCategory ] )
+		this.assertEqual( Plain, cl.Parser( [ PlainCategory ] ).resolve( [] ).categories[ PlainCategory ] )
 
 	def test_bare_selectable_contributes_no_getopt_spec_so_cannot_be_typed( this ):
 		with this.assertRaises( cl.UndefinedOptionSpecified ):
@@ -964,8 +955,8 @@ class ParserEdgeCaseTests( ut.TestCase ):
 	def test_resolve_short_circuits_when_every_category_defines_nothing( this ):
 		result = cl.Parser( [ Category_2 ] ).resolve( [ 'leftover' ] )
 
-		this.assertEqual( 0, len( result.run_parameters.categories ) )
-		this.assertEqual( [ 'leftover' ], result.run_parameters.arguments )
+		this.assertEqual( 0, len( result.categories ) )
+		this.assertEqual( [ 'leftover' ], result.arguments )
 
 	def test_getopt_error_other_than_unrecognized_is_swallowed( this ):
 		# 既知の挙動: "not recognize" を含まない GetoptError（例: 値必須オプションに

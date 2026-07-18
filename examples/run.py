@@ -69,6 +69,6 @@ class Running( cl.SelectableCategory ):
 		return Main
 
 categories_templates = [ Running, Example ]
-state = cl.Parser( categories_templates ).resolve( sys.argv[1:] )
+run_parameters = cl.Parser( categories_templates ).resolve( sys.argv[1:] )
 
-state.run_parameters.categories[ Running ].run_with( state.run_parameters )
+run_parameters.categories[ Running ].run_with( run_parameters )

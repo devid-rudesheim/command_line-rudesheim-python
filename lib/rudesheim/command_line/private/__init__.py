@@ -25,6 +25,41 @@ class UndefinedOptionSpecified( BasicException ):
 class OptionIsInConflict( BasicException ):
 	pass
 
+class ParseState:
+	"""Internal accumulator threaded through Parser._resolve()'s recursion.
+	Returned by the public module's Parser._resolve() (never by the public
+	resolve(), which unwraps this down to just `.run_parameters`) - you don't
+	normally construct this yourself.
+
+	- run_parameters: a command_line.RunParameters; its `.categories` dict is
+	  mutated in place as parsing proceeds.
+	- opts: raw (flag, value) pairs straight out of getopt, consumed only by
+	  Option.parse_with below. Not meaningful to user code.
+	- terminals: `[]`, or a single-element list holding the Command selected
+	  as the deepest match so far - see command_line.Parser.parse()'s
+	  docstring for how this gets resolved.
+	"""
+
+	def __init__( this, run_parameters, opts, terminals ):
+		this.run_parameters = run_parameters
+		this.opts = opts
+		this.terminals = terminals
+
+	@classmethod
+	def following( this, parse_state, arguments, terminals ):
+		"""Internal: build the next ParseState in the chain, carrying
+		parse_state's user_datas/categories/opts forward unchanged while
+		replacing arguments/terminals. Used by parse_with implementations
+		below. Delegates to RunParameters.following() rather than
+		constructing one directly, so this module never has to import the
+		public one (see module docstring above)."""
+		return ParseState \
+		(
+			parse_state.run_parameters.following( arguments ),
+			parse_state.opts,
+			terminals
+		)
+
 class ShortKeyDecorator:
 	"""Formats a key for the short-option form: external spelling "-x", spec
 	suffix ":" when the option also takes a value."""
@@ -118,13 +153,13 @@ class Selectable:
 
 	@classmethod
 	def parse_with( this, categories_templates, selectables_by_key, state ):
-		"""One reduce step of Parser.resolve(): consume whatever this
-		identifier is responsible for out of `state` (a
-		command_line.ParseState), return the resulting ParseState to hand to
-		the next step. `selectables_by_key` is `{external key -> (category,
-		selectable)}`, scoped to this identifier only. Base: no-op passthrough
-		- see Option.parse_with / Command.parse_with below for the real
-		logic, and `command_line.Parser.resolve()` for how this gets driven.
+		"""One reduce step of Parser._resolve(): consume whatever this
+		identifier is responsible for out of `state` (a ParseState), return
+		the resulting ParseState to hand to the next step.
+		`selectables_by_key` is `{external key -> (category, selectable)}`,
+		scoped to this identifier only. Base: no-op passthrough - see
+		Option.parse_with / Command.parse_with below for the real logic, and
+		`command_line.Parser._resolve()` for how this gets driven.
 		"""
 		return state
 
@@ -202,7 +237,7 @@ class Command( Selectable ):
 	then hands off to `decided_for(...)` below for what happens next -
 	recursing into the selectable's own `parser_define()` and settling
 	`.terminals`. This is also called directly by
-	`command_line.Parser.resolve()`'s default-fill loop (via
+	`command_line.Parser._resolve()`'s default-fill loop (via
 	`default_value.parse_identifier().decided_for(...)`), so a
 	category.default() value recurses exactly the same way an explicitly
 	typed one does.
@@ -237,7 +272,7 @@ class Command( Selectable ):
 		otherwise `selectable` falls back to being the terminal itself - see
 		command_line's README "Subcommands / Command Tree" for the worked
 		example."""
-		next_state = selectable.parser_define().resolve( state.run_parameters.arguments, state.run_parameters.user_datas )
+		next_state = selectable.parser_define()._resolve( state.run_parameters.arguments, state.run_parameters.user_datas )
 		state.run_parameters.categories.update( next_state.run_parameters.categories )
 		return next_state.following( state, next_state.run_parameters.arguments, [ ( next_state.terminals + [ selectable ] )[0] ] )
 
