@@ -23,6 +23,8 @@ import rudesheim.command_line.private as private
 BasicException = private.BasicException
 UndefinedOptionSpecified = private.UndefinedOptionSpecified
 OptionIsInConflict = private.OptionIsInConflict
+OptionValueIsMissing = private.OptionValueIsMissing
+OptionIsMalformed = private.OptionIsMalformed
 
 class DefaultDoesNotExist( BasicException ):
 	"""Raised by the base SelectableCategory.default() when selectables_defines()
@@ -280,17 +282,15 @@ class Parser:
 		returned RunParameters (see RunParameters.categories).
 
 		Caveats:
-		- Raises UndefinedOptionSpecified for an unrecognized flag, and
+		- Raises UndefinedOptionSpecified for an unrecognized flag,
 		  OptionIsInConflict when two Options from the same category are both
-		  given.
-		- A GetoptError that is not an "unrecognized option" error (e.g. a
-		  value-taking option given with no value) is currently swallowed:
-		  this method returns `None` instead of raising or returning a
-		  RunParameters. This is a known, not-yet-fixed quirk - check for
-		  `None` if it matters to you.
+		  given, OptionValueIsMissing when a value-taking option is given
+		  with no value (e.g. `-d` at the end of argv with nothing after it),
+		  and OptionIsMalformed for any other malformed input getopt rejects
+		  (e.g. a no-value option given a value it doesn't accept, like
+		  `--help=x`, or an ambiguous long-option prefix).
 		"""
-		state = this._resolve( arguments, user_datas )
-		return None if state is None else state.run_parameters
+		return this._resolve( arguments, user_datas ).run_parameters
 
 	def _resolve( this, arguments, user_datas = None ):
 		"""Internal: same as resolve(), but returns the full
@@ -317,8 +317,6 @@ class Parser:
 
 		try:
 			getopt_result = go.getopt( arguments, "".join( keys_specs[0] ), keys_specs[1] )
-			if 0 == len( selectables ):
-				return private.ParseState( RunParameters( user_datas, {}, getopt_result[1] ), [], [] )
 
 			state = ft.reduce \
 			(
@@ -345,8 +343,15 @@ class Parser:
 
 		except go.GetoptError as exception:
 
-			if 0 < str( exception ).find( "not recognize" ):
+			message = str( exception )
+
+			if -1 != message.find( "not recognize" ):
 				raise UndefinedOptionSpecified() from exception
+
+			if -1 != message.find( "requires argument" ):
+				raise OptionValueIsMissing() from exception
+
+			raise OptionIsMalformed() from exception
 
 	def parse( this, arguments, user_datas = None ):
 		"""Like resolve(), then calls `run_with(run_parameters)` exactly once
