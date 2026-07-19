@@ -956,5 +956,82 @@ class ParserEdgeCaseTests( ut.TestCase ):
 		with this.assertRaises( cl.OptionIsMalformed ):
 			cl.Parser( [ Category_0 ] ).resolve( [ '--help=x' ] )
 
+class DepthChoice( cl.Option ):
+
+	def value( this ):
+		return this.text
+
+	def __init__( this, text ):
+		this.text = text
+
+	@classmethod
+	def value_amount( this ):
+		return 1
+
+	@classmethod
+	def with_value( this, strings ):
+		return this( strings )
+
+	@classmethod
+	def value_completions( this, prefix ):
+		return ( "small", "medium", "large" )
+
+class DepthChoiceCategory( cl.SelectableCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ DepthChoice.tie( ( "d", "depth" ), "depth choice" ) ]
+
+	@classmethod
+	def default( this ):
+		return DepthChoice( "small" )
+
+class CompletionTests( ut.TestCase ):
+
+	def test_empty_prefix_returns_every_top_level_candidate( this ):
+		parser = cl.Parser( [ Category_0 ] )
+
+		this.assertEqual( [ "-v", "--version", "-h", "--help" ], parser.complete( [] ) )
+
+	def test_candidates_are_filtered_by_the_partial_word_being_completed( this ):
+		parser = cl.Parser( [ Category_0 ] )
+
+		this.assertEqual( [ "--version" ], parser.complete( [ "--v" ] ) )
+
+	def test_unmatched_key_yields_no_candidates( this ):
+		parser = cl.Parser( [ Category_0 ] )
+
+		this.assertEqual( [], parser.complete( [ "--nope", "" ] ) )
+
+	def test_command_token_descends_into_its_own_parser_define_for_completion( this ):
+		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
+
+		this.assertEqual( [ "-r", "--release" ], parser.complete( [ "build", "" ] ) )
+
+	def test_unmatched_subcommand_token_yields_no_candidates( this ):
+		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
+
+		this.assertEqual( [], parser.complete( [ "frobnicate", "" ] ) )
+
+	def test_value_taking_option_consumes_its_value_token_then_stays_at_the_same_level( this ):
+		parser = cl.Parser( [ RunningCategory, GlobalCategory ] )
+
+		this.assertEqual( [ "-d", "--depth" ], parser.complete( [ "install", "--depth", "3", "" ] ) )
+
+	def test_default_value_completions_is_empty( this ):
+		parser = cl.Parser( [ Category_1 ] )
+
+		this.assertEqual( [], parser.complete( [ "--depth", "" ] ) )
+
+	def test_value_completions_used_when_flag_is_the_last_completed_token( this ):
+		parser = cl.Parser( [ DepthChoiceCategory ] )
+
+		this.assertEqual( [ "medium" ], parser.complete( [ "--depth", "m" ] ) )
+
+	def test_value_completions_with_empty_prefix_returns_every_choice( this ):
+		parser = cl.Parser( [ DepthChoiceCategory ] )
+
+		this.assertEqual( [ "small", "medium", "large" ], parser.complete( [ "--depth", "" ] ) )
+
 if __name__ == "__main__":
 	ut.main()
