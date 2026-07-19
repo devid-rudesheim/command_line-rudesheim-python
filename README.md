@@ -95,9 +95,11 @@ myapp compose up -d web db
 
 ## Two Ways To Drive It
 
-- **`Parser.resolve(arguments, user_datas=None)`** always works, and never executes anything.
-  It just returns a `RunParameters` holding `categories`, `arguments`, and `user_datas`.
-  You dispatch behavior yourself, typically with one line at the end (see "Quick Start" below).
+- **`Parser.resolve(arguments, user_datas=None)`** never executes anything - it just returns a
+  `RunParameters` holding `categories`, `arguments`, and `user_datas` (raising
+  `UndefinedOptionSpecified`, `OptionIsInConflict`, `OptionValueIsMissing`, or `OptionIsMalformed`
+  for a malformed command line - see `Parser`'s reference entry below). You dispatch behavior
+  yourself, typically with one line at the end (see "Quick Start" below).
 - **`Parser.parse(arguments, user_datas=None)`** additionally walks a `Command` tree (declared via
   `parser_define()`) and calls `run_with(run_parameters)` exactly once on whichever `Command` ends up
   selected deepest, then returns its result (see "Subcommands / Command Tree" below).
@@ -521,7 +523,12 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 ### `Parser`
 
 - `[Provides]` `resolve(arguments, user_datas=None) -> RunParameters`: parse without running
-  anything; the returned `RunParameters` holds `categories`/`arguments`/`user_datas`
+  anything; the returned `RunParameters` holds `categories`/`arguments`/`user_datas`. Raises
+  `UndefinedOptionSpecified` for an unrecognized flag, `OptionIsInConflict` when two Options from
+  the same category are both given, `OptionValueIsMissing` when a value-taking option is given
+  with no value (e.g. `-d` at the end of argv with nothing after it), and `OptionIsMalformed` for
+  any other malformed input getopt rejects (e.g. a no-value option given a value it doesn't
+  accept, like `--help=x`, or an ambiguous long-option prefix).
 - `[Provides]` `parse(arguments, user_datas=None)`: resolve, then call `run_with(run_parameters)`
   exactly once on the deepest matched `Command`, and return its result
 - `[Provides]` `parse_from_default(user_datas=None)`: same as `parse(sys.argv[1:], user_datas)`

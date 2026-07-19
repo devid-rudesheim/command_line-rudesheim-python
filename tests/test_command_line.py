@@ -765,24 +765,6 @@ class AlwaysCategory( cl.SelectableCategory ):
 	def default( this ):
 		return AlwaysCommand
 
-class Noop( cl.Option ):
-	pass
-
-class NoopCategory( cl.SelectableCategory ):
-	# Parser.resolve() short-circuits the whole fill loop when *no* category
-	# anywhere contributes a selectables_defines() entry (see
-	# ParserEdgeCaseTests.test_resolve_short_circuits_when_every_category_defines_nothing).
-	# AlwaysCategory alone would trip that short-circuit, so this sits next to
-	# it purely to give the Parser at least one declared selectable overall -
-	# same role Example plays next to Running in the README Quick Start.
-	@classmethod
-	def selectables_defines( this ):
-		return [ Noop.tie( ( "n", ), "unused, exists only to avoid the empty-selectables short-circuit" ) ]
-
-	@classmethod
-	def default( this ):
-		return Noop
-
 class DecidedForTests( ut.TestCase ):
 
 	def test_terminal_decided_for_is_inert_no_op( this ):
@@ -797,7 +779,7 @@ class DecidedForTests( ut.TestCase ):
 		this.assertEqual \
 		(
 			( "always-ran", [ "compose", "up", "web" ] ),
-			cl.Parser( [ NoopCategory, AlwaysCategory ] ).parse( [ "compose", "up", "web" ] )
+			cl.Parser( [ AlwaysCategory ] ).parse( [ "compose", "up", "web" ] )
 		)
 
 class Plain( cl.Selectable ):
@@ -952,17 +934,27 @@ class RunWithDispatchTests( ut.TestCase ):
 
 class ParserEdgeCaseTests( ut.TestCase ):
 
-	def test_resolve_short_circuits_when_every_category_defines_nothing( this ):
+	def test_resolve_still_fills_defaults_when_every_category_defines_nothing( this ):
+		# selectables_defines() が全カテゴリで [] でも、default() 埋めは省略され
+		# ない（かつて getopt 由来の selectables が空だと丸ごと短絡し、default()
+		# が一切埋まらないバグがあった）。
 		result = cl.Parser( [ Category_2 ] ).resolve( [ 'leftover' ] )
 
-		this.assertEqual( 0, len( result.categories ) )
+		this.assertEqual( { Category_2 : Option_0 }, result.categories )
 		this.assertEqual( [ 'leftover' ], result.arguments )
 
-	def test_getopt_error_other_than_unrecognized_is_swallowed( this ):
-		# 既知の挙動: "not recognize" を含まない GetoptError（例: 値必須オプションに
-		# 値が無い）は UndefinedOptionSpecified に変換されず、resolve() は暗黙に
-		# None を返す。ライブラリ側の未修正の挙動をそのまま記録する。
-		this.assertIsNone( cl.Parser( [ Category_1 ] ).resolve( [ '-d' ] ) )
+	def test_missing_required_value_raises_option_value_is_missing( this ):
+		# "requires argument" な GetoptError（値必須オプションに値が無い）は
+		# OptionValueIsMissing に変換される。
+		with this.assertRaises( cl.OptionValueIsMissing ):
+			cl.Parser( [ Category_1 ] ).resolve( [ '-d' ] )
+
+	def test_unexpected_value_on_no_value_option_raises_option_is_malformed( this ):
+		# "requires argument" にも "not recognize" にも該当しない GetoptError
+		# （例: 値を取らない --help に --help=x として値を渡した場合）は
+		# OptionValueIsMissing ではなく、汎用の OptionIsMalformed に変換される。
+		with this.assertRaises( cl.OptionIsMalformed ):
+			cl.Parser( [ Category_0 ] ).resolve( [ '--help=x' ] )
 
 if __name__ == "__main__":
 	ut.main()

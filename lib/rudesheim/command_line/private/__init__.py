@@ -25,6 +25,16 @@ class UndefinedOptionSpecified( BasicException ):
 class OptionIsInConflict( BasicException ):
 	pass
 
+class OptionValueIsMissing( BasicException ):
+	pass
+
+class OptionIsMalformed( BasicException ):
+	"""Catch-all for a GetoptError that is neither "not recognized" (an
+	undefined flag) nor "requires argument" (a missing value) - e.g. a
+	no-value option given a value it doesn't accept (`--help=x`), or an
+	ambiguous long-option prefix matching more than one declared option."""
+	pass
+
 class ParseState:
 	"""Internal accumulator threaded through Parser._resolve()'s recursion.
 	Returned by the public module's Parser._resolve() (never by the public
