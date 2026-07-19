@@ -286,27 +286,10 @@ class Parser:
 		cl.Parser( [ Mode, ReportStyle ] )
 	"""
 
-	def resolve( this, arguments, user_datas = None ):
-		"""Parse `arguments` (a list of `str`, no program name) and return a
-		RunParameters - never runs anything, always safe to call.
-
-			run_parameters = cl.Parser( [ Mode ] ).resolve( [ "--apply", "target" ] )
-			run_parameters.categories[ Mode ].execute()   # you drive it
-
-		Recurses into a Command's own parser_define() automatically when a
-		subcommand token matches, merging that Command's categories into the
-		returned RunParameters (see RunParameters.categories).
-
-		Caveats:
-		- Raises UndefinedOptionSpecified for an unrecognized flag,
-		  OptionIsInConflict when two Options from the same category are both
-		  given, OptionValueIsMissing when a value-taking option is given
-		  with no value (e.g. `-d` at the end of argv with nothing after it),
-		  and OptionIsMalformed for any other malformed input getopt rejects
-		  (e.g. a no-value option given a value it doesn't accept, like
-		  `--help=x`, or an ambiguous long-option prefix).
-		"""
-		return this._resolve( arguments, user_datas ).run_parameters
+	def __init__( this, categories_templates ):
+		"""categories_templates: a list of SelectableCategory *classes* (not
+		instances), e.g. `Parser( [ Mode, ReportStyle ] )`."""
+		this.categories_templates_ = categories_templates
 
 	def _resolve( this, arguments, user_datas = None ):
 		"""Internal: same as resolve(), but returns the full
@@ -369,6 +352,28 @@ class Parser:
 
 			raise OptionIsMalformed() from exception
 
+	def resolve( this, arguments, user_datas = None ):
+		"""Parse `arguments` (a list of `str`, no program name) and return a
+		RunParameters - never runs anything, always safe to call.
+
+			run_parameters = cl.Parser( [ Mode ] ).resolve( [ "--apply", "target" ] )
+			run_parameters.categories[ Mode ].execute()   # you drive it
+
+		Recurses into a Command's own parser_define() automatically when a
+		subcommand token matches, merging that Command's categories into the
+		returned RunParameters (see RunParameters.categories).
+
+		Caveats:
+		- Raises UndefinedOptionSpecified for an unrecognized flag,
+		  OptionIsInConflict when two Options from the same category are both
+		  given, OptionValueIsMissing when a value-taking option is given
+		  with no value (e.g. `-d` at the end of argv with nothing after it),
+		  and OptionIsMalformed for any other malformed input getopt rejects
+		  (e.g. a no-value option given a value it doesn't accept, like
+		  `--help=x`, or an ambiguous long-option prefix).
+		"""
+		return this._resolve( arguments, user_datas ).run_parameters
+
 	def parse( this, arguments, user_datas = None ):
 		"""Like resolve(), then calls `run_with(run_parameters)` exactly once
 		and returns its result - see README "Subcommands / Command Tree" for
@@ -387,52 +392,6 @@ class Parser:
 		"""Same as `parse(sys.argv[1:], user_datas)` - the usual top-level
 		entry point for a real script."""
 		return this.parse( sys.argv[1:], user_datas )
-
-	def complete( this, arguments, user_datas = None ):
-		"""Tab-completion entry point: `arguments` is the CLI tokens typed so
-		far, with the LAST element being the word currently being completed
-		(an empty string "" if the user just typed a space and is starting a
-		fresh word). Returns the list of candidate strings that word could
-		complete to - flag/subcommand keys at whatever level of the command
-		tree `arguments` reaches, or value_completions() of a value-taking
-		Option/Command whose flag was the immediately preceding token.
-
-		Unlike resolve()/parse(), never raises on incomplete or malformed
-		input - completion is by definition mid-typing, so this walks
-		`arguments` leniently instead of handing them to getopt.
-		"""
-		user_datas = [] if user_datas is None else user_datas
-		arguments = list( arguments ) if 0 < len( arguments ) else [ "" ]
-
-		return this._complete_walk( arguments[:-1], arguments[-1], user_datas )
-
-	def _complete_walk( this, completed, prefix, user_datas ):
-		"""Internal: leniently consume `completed` one token at a time - an
-		Option's flag (plus its value token, if it takes one and one is
-		still present) leaves this Parser's own level; a Command's token
-		descends into `selectable.parser_define()` for the rest. Once
-		`completed` runs out, return this level's own candidates for
-		`prefix`."""
-		if 0 == len( completed ):
-			return this._candidates_for( prefix )
-
-		match = this._match_key( completed[0] )
-		if match is None:
-			return []
-
-		category, selectable = match
-		rest = completed[1:]
-
-		if 0 < selectable.value_amount():
-			if 0 == len( rest ):
-				return [ candidate for candidate in selectable.value_completions( prefix ) if candidate.startswith( prefix ) ]
-
-			rest = rest[1:]
-
-		if this._is_command( selectable ):
-			return selectable.parser_define()._complete_walk( rest, prefix, user_datas )
-
-		return this._complete_walk( rest, prefix, user_datas )
 
 	def _entries( this ):
 		"""Internal: every (category, external key spelling, selectable)
@@ -453,9 +412,9 @@ class Parser:
 	def _match_key( this, key ):
 		for category, external, selectable in this._entries():
 			if external == key:
-				return ( category, selectable )
+				return ( ( category, selectable ), )
 
-		return None
+		return ()
 
 	def _is_command( this, selectable ):
 		if not isinstance( selectable, type ):
@@ -463,10 +422,51 @@ class Parser:
 
 		return issubclass( selectable, Command )
 
-	def __init__( this, categories_templates ):
-		"""categories_templates: a list of SelectableCategory *classes* (not
-		instances), e.g. `Parser( [ Mode, ReportStyle ] )`."""
-		this.categories_templates_ = categories_templates
+	def _complete_walk( this, completed, prefix, user_datas ):
+		"""Internal: leniently consume `completed` one token at a time - an
+		Option's flag (plus its value token, if it takes one and one is
+		still present) leaves this Parser's own level; a Command's token
+		descends into `selectable.parser_define()` for the rest. Once
+		`completed` runs out, return this level's own candidates for
+		`prefix`."""
+		if 0 == len( completed ):
+			return this._candidates_for( prefix )
+
+		matches = this._match_key( completed[0] )
+		if 0 == len( matches ):
+			return []
+
+		category, selectable = matches[0]
+		rest = completed[1:]
+
+		if 0 < selectable.value_amount():
+			if 0 == len( rest ):
+				return [ candidate for candidate in selectable.value_completions( prefix ) if candidate.startswith( prefix ) ]
+
+			rest = rest[1:]
+
+		if this._is_command( selectable ):
+			return selectable.parser_define()._complete_walk( rest, prefix, user_datas )
+
+		return this._complete_walk( rest, prefix, user_datas )
+
+	def complete( this, arguments, user_datas = None ):
+		"""Tab-completion entry point: `arguments` is the CLI tokens typed so
+		far, with the LAST element being the word currently being completed
+		(an empty string "" if the user just typed a space and is starting a
+		fresh word). Returns the list of candidate strings that word could
+		complete to - flag/subcommand keys at whatever level of the command
+		tree `arguments` reaches, or value_completions() of a value-taking
+		Option/Command whose flag was the immediately preceding token.
+
+		Unlike resolve()/parse(), never raises on incomplete or malformed
+		input - completion is by definition mid-typing, so this walks
+		`arguments` leniently instead of handing them to getopt.
+		"""
+		user_datas = [] if user_datas is None else user_datas
+		arguments = list( arguments ) if 0 < len( arguments ) else [ "" ]
+
+		return this._complete_walk( arguments[:-1], arguments[-1], user_datas )
 
 class OptionForPrint( Option ):
 	"""An Option whose run_with() just prints print_string(). Base for
@@ -541,6 +541,9 @@ class BasicHelp( OptionForPrint ):
 	Override overview()/usage()/explanation() to add free-text lines before
 	the generated per-category option listing.
 	"""
+
+	def __init__( this, categories_templates ):
+		this.categories_templates = categories_templates
 
 	@classmethod
 	def description( this ):
@@ -626,6 +629,3 @@ class BasicHelp( OptionForPrint ):
 
 	def run_with( this, run_parameters ):
 		print( this.print_string() )
-
-	def __init__( this, categories_templates ):
-		this.categories_templates = categories_templates

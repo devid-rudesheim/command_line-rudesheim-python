@@ -113,13 +113,13 @@ myapp compose up -d web db
 mode = args.mode
 
 if mode == "dry-run":
-    print("dry run")
+    print( "dry run" )
 elif mode == "apply":
     run_apply()
 elif mode == "delete":
     run_delete()
 else:
-    raise ValueError("unknown mode")
+    raise ValueError( "unknown mode" )
 ```
 
 ### After (object selection + behavior dispatch)
@@ -127,41 +127,42 @@ else:
 ```python
 import rudesheim.command_line as cl
 
-class DryRun(cl.Option):
+class DryRun( cl.Option ):
     # FREE: user-defined behavior
     @classmethod
-    def execute(this):
-        print("dry run")
+    def execute( this ):
+        print( "dry run" )
 
-class Apply(cl.Option):
+class Apply( cl.Option ):
     # FREE: user-defined behavior
     @classmethod
-    def execute(this):
+    def execute( this ):
         run_apply()
 
-class Delete(cl.Option):
+class Delete( cl.Option ):
     # FREE: user-defined behavior
     @classmethod
-    def execute(this):
+    def execute( this ):
         run_delete()
 
-class Mode(cl.SelectableCategory):
+class Mode( cl.SelectableCategory ):
     # REQUIRED (practical): declare selectable options in this category
     @classmethod
-    def selectables_defines(this):
-        return [
-            DryRun.tie(("d", "dry-run"), "execute without changes"),
-            Apply.tie(("a", "apply"), "apply changes"),
-            Delete.tie(("x", "delete"), "delete resource"),
+    def selectables_defines( this ):
+        return \
+        [
+            DryRun.tie( ( "d", "dry-run" ), "execute without changes" ),
+            Apply.tie( ( "a", "apply" ), "apply changes" ),
+            Delete.tie( ( "x", "delete" ), "delete resource" ),
         ]
 
     # REQUIRED (practical): declare fallback when no option is given
     @classmethod
-    def default(this):
+    def default( this ):
         return DryRun
 
 # FREE: caller sends behavior message to selected object
-cl.Parser([Mode]).resolve(["--apply"]).categories[Mode].execute()
+cl.Parser( [ Mode ] ).resolve( [ "--apply" ] ).categories[ Mode ].execute()
 ```
 
 No `if/elif` by option value is needed in the caller.
@@ -174,96 +175,98 @@ The selected option is usually kept in a variable and used throughout shared flo
 ```python
 import rudesheim.command_line as cl
 
-class DryRun(cl.Option):
+class DryRun( cl.Option ):
     @classmethod
-    def before_batch(this, items):
-        print(f"[dry-run] check {len(items)} items")
+    def before_batch( this, items ):
+        print( f"[dry-run] check {len( items )} items" )
 
     @classmethod
-    def process_item(this, item):
-        print(f"[dry-run] skip {item}")
+    def process_item( this, item ):
+        print( f"[dry-run] skip {item}" )
 
     @classmethod
-    def after_batch(this):
-        print("[dry-run] done")
+    def after_batch( this ):
+        print( "[dry-run] done" )
 
-class Apply(cl.Option):
+class Apply( cl.Option ):
     @classmethod
-    def before_batch(this, items):
+    def before_batch( this, items ):
         open_transaction()
 
     @classmethod
-    def process_item(this, item):
-        apply_item(item)
+    def process_item( this, item ):
+        apply_item( item )
 
     @classmethod
-    def after_batch(this):
+    def after_batch( this ):
         commit_transaction()
 
-class Mode(cl.SelectableCategory):
+class Mode( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
-        return [
-            DryRun.tie(("d", "dry-run"), "do not mutate"),
-            Apply.tie(("a", "apply"), "apply changes"),
+    def selectables_defines( this ):
+        return \
+        [
+            DryRun.tie( ( "d", "dry-run" ), "do not mutate" ),
+            Apply.tie( ( "a", "apply" ), "apply changes" ),
         ]
 
     @classmethod
-    def default(this):
+    def default( this ):
         return DryRun
 
-class Quiet(cl.Option):
+class Quiet( cl.Option ):
     @classmethod
-    def on_start(this, items):
+    def on_start( this, items ):
         pass
 
     @classmethod
-    def on_item(this, item):
+    def on_item( this, item ):
         pass
 
     @classmethod
-    def on_finish(this):
+    def on_finish( this ):
         pass
 
-class Verbose(cl.Option):
+class Verbose( cl.Option ):
     @classmethod
-    def on_start(this, items):
-        print(f"[verbose] start {len(items)} items")
+    def on_start( this, items ):
+        print( f"[verbose] start {len( items )} items" )
 
     @classmethod
-    def on_item(this, item):
-        print(f"[verbose] item {item}")
+    def on_item( this, item ):
+        print( f"[verbose] item {item}" )
 
     @classmethod
-    def on_finish(this):
-        print("[verbose] finish")
+    def on_finish( this ):
+        print( "[verbose] finish" )
 
-class ReportStyle(cl.SelectableCategory):
+class ReportStyle( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
-        return [
-            Quiet.tie(("q", "quiet"), "minimal output"),
-            Verbose.tie(("V", "verbose"), "verbose output"),
+    def selectables_defines( this ):
+        return \
+        [
+            Quiet.tie( ( "q", "quiet" ), "minimal output" ),
+            Verbose.tie( ( "V", "verbose" ), "verbose output" ),
         ]
 
     @classmethod
-    def default(this):
+    def default( this ):
         return Quiet
 
-run_parameters = cl.Parser([Mode, ReportStyle]).resolve(["--apply", "--verbose", "A", "B"])
+run_parameters = cl.Parser( [ Mode, ReportStyle ] ).resolve( [ "--apply", "--verbose", "A", "B" ] )
 categories = run_parameters.categories
-mode = categories[Mode]
-report = categories[ReportStyle]
+mode = categories[ Mode ]
+report = categories[ ReportStyle ]
 
 # shared flow (common processing)
 items = run_parameters.arguments
-report.on_start(items)        # second category behavior
-mode.before_batch(items)      # option-specific behavior
-for item in items:            # common loop
-    report.on_item(item)      # second category behavior
-    mode.process_item(item)   # option-specific behavior
-mode.after_batch()            # option-specific behavior
-report.on_finish()            # second category behavior
+report.on_start( items )        # second category behavior
+mode.before_batch( items )      # option-specific behavior
+for item in items:               # common loop
+    report.on_item( item )      # second category behavior
+    mode.process_item( item )   # option-specific behavior
+mode.after_batch()              # option-specific behavior
+report.on_finish()              # second category behavior
 ```
 
 In this style, common workflow stays in one place, and option-specific branching is absorbed by methods on selected option.
@@ -275,35 +278,35 @@ When an option receives a value, implement `value_amount()` and `with_value(stri
 ```python
 import rudesheim.command_line as cl
 
-class Depth(cl.Option):
-    def __init__(this, text):
+class Depth( cl.Option ):
+    def __init__( this, text ):
         this.text = text
 
     # REQUIRED for value option
     @classmethod
-    def value_amount(this):
+    def value_amount( this ):
         return 1
 
     # REQUIRED for value option
     @classmethod
-    def with_value(this, strings):
-        return this(strings)
+    def with_value( this, strings ):
+        return this( strings )
 
     # FREE: domain behavior
-    def as_int(this):
-        return int(this.text)
+    def as_int( this ):
+        return int( this.text )
 
-class DepthCategory(cl.SelectableCategory):
+class DepthCategory( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
-        return [Depth.tie(("d", "depth"), "depth value")]
+    def selectables_defines( this ):
+        return [ Depth.tie( ( "d", "depth" ), "depth value" ) ]
 
     @classmethod
-    def default(this):
-        return Depth("1")
+    def default( this ):
+        return Depth( "1" )
 
-run_parameters = cl.Parser([DepthCategory]).resolve(["--depth=3", "target"])
-depth = run_parameters.categories[DepthCategory].as_int()  # 3
+run_parameters = cl.Parser( [ DepthCategory ] ).resolve( [ "--depth=3", "target" ] )
+depth = run_parameters.categories[ DepthCategory ].as_int()  # 3
 remaining = run_parameters.arguments  # ["target"]
 ```
 
@@ -315,47 +318,47 @@ manual `run_with(...)` call — there is no verb to recurse into, so `parse()` (
 ```python
 import rudesheim.command_line as cl
 
-class Disabled(cl.Option):
+class Disabled( cl.Option ):
     # FREE: user-defined behavior
     @classmethod
-    def example(this):
-        print("Disable")
+    def example( this ):
+        print( "Disable" )
 
-class Enabled(cl.Option):
+class Enabled( cl.Option ):
     # FREE: user-defined behavior
     @classmethod
-    def example(this):
-        print("Enable")
+    def example( this ):
+        print( "Enable" )
 
-class Example(cl.SelectableCategory):
+class Example( cl.SelectableCategory ):
     # REQUIRED (practical)
     @classmethod
-    def selectables_defines(this):
-        return [Enabled.tie(("e", "example"), "for example")]
+    def selectables_defines( this ):
+        return [ Enabled.tie( ( "e", "example" ), "for example" ) ]
 
     # REQUIRED (practical)
     @classmethod
-    def default(this):
+    def default( this ):
         return Disabled
 
-class Main(cl.Option):
+class Main( cl.Option ):
     # FREE: give the entry-point option a run_with of its own
     @classmethod
-    def run_with(this, run_parameters):
-        run_parameters.categories[Example].example()
+    def run_with( this, run_parameters ):
+        run_parameters.categories[ Example ].example()
 
-class Running(cl.SelectableCategory):
+class Running( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
+    def selectables_defines( this ):
         return []
 
     @classmethod
-    def default(this):
+    def default( this ):
         return Main
 
-categories_templates = [Running, Example]
-run_parameters = cl.Parser(categories_templates).resolve(["--example"])
-run_parameters.categories[Running].run_with(run_parameters)
+categories_templates = [ Running, Example ]
+run_parameters = cl.Parser( categories_templates ).resolve( [ "--example" ] )
+run_parameters.categories[ Running ].run_with( run_parameters )
 ```
 
 ## Subcommands / Command Tree
@@ -368,51 +371,51 @@ walks the whole tree by itself — no manual recursive `parse()` calls needed.
 import sys
 import rudesheim.command_line as cl
 
-class Up(cl.Command):
+class Up( cl.Command ):
     @classmethod
-    def run_with(this, run_parameters):
-        print(f"up {list(run_parameters.arguments)}")
+    def run_with( this, run_parameters ):
+        print( f"up {list( run_parameters.arguments )}" )
 
-class Down(cl.Command):
+class Down( cl.Command ):
     @classmethod
-    def run_with(this, run_parameters):
-        print(f"down {list(run_parameters.arguments)}")
+    def run_with( this, run_parameters ):
+        print( f"down {list( run_parameters.arguments )}" )
 
-class ComposeSubcommand(cl.SelectableCategory):
+class ComposeSubcommand( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
-        return [Up.tie(("up",), "start containers"), Down.tie(("down",), "stop containers")]
+    def selectables_defines( this ):
+        return [ Up.tie( ( "up", ), "start containers" ), Down.tie( ( "down", ), "stop containers" ) ]
 
     @classmethod
-    def default(this):
+    def default( this ):
         # No subcommand typed here -> defer to Compose's own run_with(),
         # not Up's. See "Terminal" below.
         return cl.Terminal
 
-class Compose(cl.Command):
+class Compose( cl.Command ):
     # REQUIRED to have subcommands: declare the grammar one level down
     @classmethod
-    def parser_define(this):
-        return cl.Parser([ComposeSubcommand])
+    def parser_define( this ):
+        return cl.Parser( [ ComposeSubcommand ] )
 
     # FREE: only needed if "compose" with no subcommand should do something
     # of its own, instead of raising RunWithNotImplemented
     @classmethod
-    def run_with(this, run_parameters):
-        print("usage: compose [up|down]")
+    def run_with( this, run_parameters ):
+        print( "usage: compose [up|down]" )
 
-class RootSubcommand(cl.SelectableCategory):
+class RootSubcommand( cl.SelectableCategory ):
     @classmethod
-    def selectables_defines(this):
-        return [Compose.tie(("compose",), "manage compose stacks")]
+    def selectables_defines( this ):
+        return [ Compose.tie( ( "compose", ), "manage compose stacks" ) ]
 
     @classmethod
-    def default(this):
+    def default( this ):
         # No token typed at all -> a real Command, not Terminal. There is no
         # enclosing Command here for Terminal to defer to.
         return Compose
 
-cl.Parser([RootSubcommand]).parse(sys.argv[1:])
+cl.Parser( [ RootSubcommand ] ).parse( sys.argv[1:] )
 ```
 
 ```text
@@ -551,14 +554,14 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 `arguments` (an empty string `""` if the user just typed a space and is starting a fresh word) -
 flag/subcommand keys at whatever level of the command tree the earlier elements reach, or
 `value_completions(prefix)` of a value-taking `Option`/`Command` whose flag was the immediately
-preceding token. This is a **library-level API only** - it takes a Python list and returns a Python
+preceding token. This is a **library-level interface only** - it takes a Python list and returns a Python
 list. It has nothing to do with a shell yet.
 
 ```python
-parser = cl.Parser(root_categories_templates)
-parser.complete([])                             # -> ["-v", "--verbose", "-q", "--quiet", "-h", "--help", "service", "config"]
-parser.complete(["service", ""])                # -> ["-d", "--detach", "-f", "--foreground", "-h", "--help", "start", "stop"]
-parser.complete(["service", "st"])              # -> ["start", "stop"]
+parser = cl.Parser( root_categories_templates )
+parser.complete( [] )                                 # -> ["-v", "--verbose", "-q", "--quiet", "-h", "--help", "service", "config"]
+parser.complete( [ "service", "" ] )                  # -> ["-d", "--detach", "-f", "--foreground", "-h", "--help", "start", "stop"]
+parser.complete( [ "service", "st" ] )                # -> ["start", "stop"]
 ```
 
 There are two separate, unrelated things below - do not mix them up:

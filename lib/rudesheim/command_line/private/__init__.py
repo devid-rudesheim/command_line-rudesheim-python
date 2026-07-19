@@ -327,6 +327,11 @@ class DefineOfSelectable( ItemForHelp ):
 	module.
 	"""
 
+	def __init__( this, selectable, keys, description ):
+		this.selectable_ = selectable
+		this.keys_ = keys
+		this.description_ = description
+
 	def selectable( this ):
 		"""The tied class (or instance, for a pre-configured selectable such
 		as `Help(categories_templates)`)."""
@@ -340,8 +345,3 @@ class DefineOfSelectable( ItemForHelp ):
 
 	def description( this ):
 		return this.description_
-
-	def __init__( this, selectable, keys, description ):
-		this.selectable_ = selectable
-		this.keys_ = keys
-		this.description_ = description
