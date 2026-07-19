@@ -17,23 +17,136 @@ would create a circular import, since the public module imports this one).
 """
 
 class BasicException( Exception ):
-	pass
+	"""Root of every exception this library raises.
 
-class UndefinedOptionSpecified( BasicException ):
-	pass
+	Provides two library-users-facing hooks meant to be composed into
+	your own error handling instead of a hand-rolled isinstance/message
+	chain: `describe()` (instance method - a human-readable one-line
+	explanation, built from this exception's own identifying attributes)
+	and `exit_code()` (classmethod - a sysexits.h-style process exit code
+	for this exception's phase). Typical use:
 
-class OptionIsInConflict( BasicException ):
-	pass
+		try:
+			parser.parse_from_default()
+		except cl.BasicException as exception:
+			print( exception.describe(), file = sys.stderr )
+			sys.exit( exception.exit_code() )
 
-class OptionValueIsMissing( BasicException ):
-	pass
+	Neither is a silent fallback pretending to be adequate for every
+	case - `describe()` defaults to `str(this)` (just the raw
+	constructor arguments) and is overridden with a better message on
+	every concrete exception below; `exit_code()` defaults to 1 and is
+	overridden per-phase (see DeclarationException/ParseException/
+	DispatchException)."""
 
-class OptionIsMalformed( BasicException ):
+	@classmethod
+	def exit_code( this ):
+		return 1
+
+	def describe( this ):
+		return str( this )
+
+class DeclarationException( BasicException ):
+	"""Phase marker (no attributes of its own): common base for exceptions
+	Parser.__init__ raises against the static category declarations
+	themselves, before any command-line input is looked at - an authoring
+	bug in categories_templates, meant to be caught once during
+	development rather than handled at runtime. See ParseException /
+	DispatchException for the other two phases; every exception this
+	library raises is exactly one of the three."""
+
+	@classmethod
+	def exit_code( this ):
+		return 70 # EX_SOFTWARE (sysexits.h): an authoring bug, not user input
+
+class ParseException( BasicException ):
+	"""Phase marker (no attributes of its own): common base for exceptions
+	raised while Parser.resolve()/parse() processes actual command-line
+	input - bad end-user input to report and recover from, as opposed to
+	DeclarationException (an authoring bug) or DispatchException (a
+	run_with() implementation gap found only after parsing succeeded)."""
+
+	@classmethod
+	def exit_code( this ):
+		return 64 # EX_USAGE (sysexits.h): bad end-user command-line input
+
+class DispatchException( BasicException ):
+	"""Phase marker (no attributes of its own): common base for exceptions
+	raised once run_with() itself is invoked, after parsing has already
+	completed successfully - see ParseException / DeclarationException
+	for the other two phases."""
+
+	@classmethod
+	def exit_code( this ):
+		return 70 # EX_SOFTWARE (sysexits.h): an authoring bug, not user input
+
+class CategoryException( BasicException ):
+	"""Shape mixin (no phase of its own - combine with one of
+	DeclarationException/ParseException/DispatchException on the leaf
+	class): carries a single offending SelectableCategory on `.category`.
+	Not aliased into the public command_line module - it exists purely to
+	share `__init__` between DefaultDoesNotExist/CategoryIsMixed/
+	SelectableIsOmitted, not as something callers are meant to catch
+	directly (doing so would mix a DeclarationException authoring bug
+	with ParseException end-user input errors in one except clause)."""
+
+	def __init__( this, category ):
+		super().__init__( category )
+		this.category = category
+
+class KeyedException( BasicException ):
+	"""Shape mixin (no phase of its own - combine with one of
+	DeclarationException/ParseException/DispatchException on the leaf
+	class): carries a single offending external key spelling (no leading
+	`-`/`--`) on `.key`. Not aliased into the public command_line module,
+	for the same reason as CategoryException above - it exists to share
+	`__init__` between UndefinedOptionSpecified/OptionValueIsMissing/
+	OptionIsMalformed, not as something callers are meant to catch
+	directly."""
+
+	def __init__( this, key ):
+		super().__init__( key )
+		this.key = key
+
+class UndefinedOptionSpecified( KeyedException, ParseException ):
+	"""Raised for an unrecognized flag. The key comes from getopt's own
+	GetoptError.opt."""
+
+	def describe( this ):
+		return "unrecognized option: {0}".format( key_decorator_for( this.key ).convert_for_external( this.key ) )
+
+class OptionIsInConflict( ParseException ):
+	"""Raised by Option.parse_with when a category already holds a
+	selectable this round. Carries the offending category (`.category`),
+	the selectable already chosen (`.previous`), and the one that lost
+	(`.attempted`)."""
+
+	def __init__( this, category, previous, attempted ):
+		super().__init__( category, previous, attempted )
+		this.category = category
+		this.previous = previous
+		this.attempted = attempted
+
+	def describe( this ):
+		return "option for {0} is already {1}; got conflicting {2}".format(
+			this.category.description(), this.previous.description(), this.attempted.description() )
+
+class OptionValueIsMissing( KeyedException, ParseException ):
+	"""Raised when a value-taking option is given with no value. The key
+	comes from getopt's own GetoptError.opt."""
+
+	def describe( this ):
+		return "option {0} requires a value".format( key_decorator_for( this.key ).convert_for_external( this.key ) )
+
+class OptionIsMalformed( KeyedException, ParseException ):
 	"""Catch-all for a GetoptError that is neither "not recognized" (an
 	undefined flag) nor "requires argument" (a missing value) - e.g. a
 	no-value option given a value it doesn't accept (`--help=x`), or an
 	ambiguous long-option prefix matching more than one declared option."""
-	pass
+
+	def describe( this ):
+		return "option {0} was given an unexpected or invalid value".format(
+			key_decorator_for( this.key ).convert_for_external( this.key ) )
 
 class ParseState:
 	"""Internal accumulator threaded through Parser._resolve()'s recursion.
@@ -231,7 +344,7 @@ class Option( Selectable ):
 		for key_value in state.opts:
 			category, selectable = selectables_by_key[ key_value[0] ]
 			if category in state.run_parameters.categories:
-				raise OptionIsInConflict()
+				raise OptionIsInConflict( category, state.run_parameters.categories[ category ], selectable )
 
 			if 0 < selectable.value_amount():
 				selectable = selectable.with_value( key_value[1] )

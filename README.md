@@ -484,7 +484,8 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Provides]` `with_value(strings)`: default returns the class itself
 - `[Provides]` `value_completions(prefix)`: default returns `()` - only meaningful when
   `value_amount()` > 0; see "Tab Completion" below
-- `[Provides]` `run_with(run_parameters)`: default raises `RunWithNotImplemented`
+- `[Provides]` `run_with(run_parameters)`: default raises `RunWithNotImplemented`, carrying the
+  offending selectable on `.selectable`
 - `[Free]` override `run_with(run_parameters)` to make this selectable executable
 - `[Provides]` `decided_for(category, state)`: internal - runs once, right when this selectable becomes
   a category's value (matched or defaulted). Default no-op; `Command` overrides it - you should not
@@ -521,7 +522,8 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Provides]` category key type used in the parse result map
 - `[Provides]` conflict enforcement: one selected option per category
 - `[Provides]` `default()`: raises `DefaultDoesNotExist` if `selectables_defines()` is empty, otherwise
-  returns the first declared selectable
+  returns the first declared selectable. `DefaultDoesNotExist` carries the offending category on
+  `.category`.
 - `[Required]` implement `selectables_defines()`: selectable definitions in this category
 - `[Free]` override `default()` explicitly instead of relying on "first declared wins" (recommended)
 
@@ -544,6 +546,60 @@ The check runs inside `default()` itself - the same extension point every catego
 fires identically for `Option`- and `Command`-based categories, and whether the category is driven via
 `resolve()` (manual dispatch) or `parse()` (automatic `run_with()`).
 
+### Exception Hierarchy
+
+All exceptions this library raises are `BasicException` subclasses, composed along two independent
+axes:
+
+- **Phase** (every exception is exactly one of these three, no exceptions left unclassified):
+  - `DeclarationException`: `Parser.__init__` raises these against the static `categories_templates`
+    declarations themselves, before any command-line input is looked at - `KeyIsDuplicated`,
+    `CategoryIsMixed`. An authoring bug, meant to be caught once during development.
+  - `ParseException`: `Parser.resolve()`/`parse()` raises these while processing actual command-line
+    input - `SelectableIsOmitted`, `DefaultDoesNotExist`, `OptionIsInConflict`,
+    `UndefinedOptionSpecified`, `OptionValueIsMissing`, `OptionIsMalformed`. Bad end-user input to
+    report and recover from.
+  - `DispatchException`: fires from `run_with()` itself, after parsing has already succeeded -
+    `RunWithNotImplemented`.
+- **Shape** (which attributes it carries, independent of phase; internal only - not aliased into
+  `rudesheim.command_line`): `private.CategoryException` carries a single offending `SelectableCategory`
+  on `.category`; `private.KeyedException` carries a single offending external key spelling on `.key`
+  (no leading `-`/`--`). Neither implies a phase by itself - e.g. `CategoryIsMixed` and
+  `SelectableIsOmitted` both get `.category` from the same internal mixin but sit in different phases.
+  `KeyIsDuplicated` and `OptionIsInConflict` carry more than one piece of data each and implement
+  `__init__` directly instead. These mixins only exist to share `__init__` bodies between the concrete
+  exceptions above - they aren't exposed for catching, since doing so (e.g. "catch anything with a
+  `.category`") would mix a `DeclarationException` authoring bug with a `ParseException` end-user
+  input error in one `except` clause.
+
+Catch by phase (`ParseException`, `DeclarationException`, `DispatchException`) to decide how to react;
+catch by the concrete exception type to read `.category`/`.key`/etc.
+
+### Default Error Handling
+
+Every `BasicException` provides two more hooks, meant to be composed into your own top-level error
+handling instead of a hand-rolled isinstance/message chain:
+
+- `describe()` (instance method): a human-readable one-line explanation built from this exception's
+  own identifying attributes (e.g. `"unrecognized option: -x"`, `"category Mode requires an explicit
+  selection"`). Default (`BasicException.describe()`) falls back to `str(this)`; every exception this
+  library raises overrides it with a more specific message.
+- `exit_code()` (classmethod): a [sysexits.h](https://man.freebsd.org/cgi/man.cgi?query=sysexits)-style
+  process exit code for this exception's phase - `64` (`EX_USAGE`) for `ParseException`, `70`
+  (`EX_SOFTWARE`) for `DeclarationException`/`DispatchException`, `1` for a bare `BasicException`.
+
+Both are resolved polymorphically by the exception's own class - there is no separate handler object
+to look up "what kind of exception is this" against, in keeping with this library's preference for
+behavior living on the object itself. Typical use at your program's entry point:
+
+```python
+try:
+    parser.parse_from_default()
+except cl.BasicException as exception:
+    print( exception.describe(), file = sys.stderr )
+    sys.exit( exception.exit_code() )
+```
+
 ### `Parser`
 
 - `[Provides]` `Parser(categories_templates)`: validates the declarations immediately and raises
@@ -553,13 +609,19 @@ fires identically for `Option`- and `Command`-based categories, and whether the 
   together) - keep `Option`s and `Command`s in separate categories, as every worked example above
   does. Both checks are scoped to this one level; a nested `Command`'s own `parser_define()` is
   validated independently once it is constructed, so reusing a key one level down is fine.
+  `KeyIsDuplicated` carries the duplicated key spelling (`.key`) and both colliding categories
+  (`.first_category`, `.second_category`); `CategoryIsMixed` carries the offending category
+  (`.category`).
 - `[Provides]` `resolve(arguments, user_datas=None) -> RunParameters`: parse without running
   anything; the returned `RunParameters` holds `categories`/`arguments`/`user_datas`. Raises
   `UndefinedOptionSpecified` for an unrecognized flag, `OptionIsInConflict` when two Options from
   the same category are both given, `OptionValueIsMissing` when a value-taking option is given
   with no value (e.g. `-d` at the end of argv with nothing after it), and `OptionIsMalformed` for
   any other malformed input getopt rejects (e.g. a no-value option given a value it doesn't
-  accept, like `--help=x`, or an ambiguous long-option prefix).
+  accept, like `--help=x`, or an ambiguous long-option prefix). `UndefinedOptionSpecified`,
+  `OptionValueIsMissing`, and `OptionIsMalformed` all carry the bare offending key spelling on
+  `.key` (no leading `-`/`--`); `OptionIsInConflict` carries the offending category (`.category`),
+  the selectable already chosen (`.previous`), and the one that lost (`.attempted`).
 - `[Provides]` `parse(arguments, user_datas=None)`: resolve, then call `run_with(run_parameters)`
   exactly once on the deepest matched `Command`, and return its result
 - `[Provides]` `parse_from_default(user_datas=None)`: same as `parse(sys.argv[1:], user_datas)`

@@ -21,24 +21,36 @@ import functools as ft
 import rudesheim.command_line.private as private
 
 BasicException = private.BasicException
+DeclarationException = private.DeclarationException
+ParseException = private.ParseException
+DispatchException = private.DispatchException
 UndefinedOptionSpecified = private.UndefinedOptionSpecified
 OptionIsInConflict = private.OptionIsInConflict
 OptionValueIsMissing = private.OptionValueIsMissing
 OptionIsMalformed = private.OptionIsMalformed
 
-class DefaultDoesNotExist( BasicException ):
+class DefaultDoesNotExist( private.CategoryException, ParseException ):
 	"""Raised by the base SelectableCategory.default() when selectables_defines()
 	is empty and the subclass did not override default() with its own fallback."""
-	pass
 
-class RunWithNotImplemented( BasicException ):
+	def describe( this ):
+		return "category {0} has no selectables and no default".format( this.category.description() )
+
+class RunWithNotImplemented( DispatchException ):
 	"""Raised by the base Selectable.run_with() when a Command/Option that ended
 	up selected as the terminal never overrode run_with(). Deliberately loud
 	instead of a silent no-op, since Parser.parse() always calls run_with()
-	exactly once on whatever it resolves to."""
-	pass
+	exactly once on whatever it resolves to. Carries the offending selectable
+	(`.selectable`)."""
 
-class KeyIsDuplicated( BasicException ):
+	def __init__( this, selectable ):
+		super().__init__( selectable )
+		this.selectable = selectable
+
+	def describe( this ):
+		return "{0} does not implement run_with()".format( this.selectable.description() )
+
+class KeyIsDuplicated( DeclarationException ):
 	"""Raised by Parser.__init__ when two selectables tied anywhere in this
 	Parser's own categories_templates_ share the same external key spelling
 	- whether both ties are in the same category or two different ones.
@@ -48,10 +60,22 @@ class KeyIsDuplicated( BasicException ):
 	to this one Parser level only - a nested Command's own parser_define()
 	is validated independently when it is constructed, and getopt stops
 	consuming flags at the first positional token, so two different levels
-	of a command tree can never actually contest the same key."""
-	pass
+	of a command tree can never actually contest the same key. Carries the
+	duplicated key spelling (`.key`) and both colliding categories
+	(`.first_category`, `.second_category` - the same category twice when
+	both ties live in one category)."""
 
-class CategoryIsMixed( BasicException ):
+	def __init__( this, key, first_category, second_category ):
+		super().__init__( key, first_category, second_category )
+		this.key = key
+		this.first_category = first_category
+		this.second_category = second_category
+
+	def describe( this ):
+		return "key {0} is tied in both {1} and {2}".format(
+			this.key, this.first_category.description(), this.second_category.description() )
+
+class CategoryIsMixed( private.CategoryException, DeclarationException ):
 	"""Raised by Parser.__init__ when one SelectableCategory's
 	selectables_defines() ties selectables of more than one kind together
 	(e.g. an Option and a Command in the same category). Option.parse_with
@@ -59,17 +83,16 @@ class CategoryIsMixed( BasicException ):
 	Command.parse_with has no equivalent check - a mixed category would let
 	a matched Command silently overwrite an already-decided Option instead
 	of raising anything."""
-	pass
 
-class SelectableIsOmitted( BasicException ):
+	def describe( this ):
+		return "category {0} mixes Option and Command selectables".format( this.category.description() )
+
+class SelectableIsOmitted( private.CategoryException, ParseException ):
 	"""Raised by RequiredCategory.default() when nothing was explicitly
-	selected on the command line for a category that requires one. Carries
-	the offending SelectableCategory (`.category`) so callers can identify
-	which category failed without parsing a message string."""
+	selected on the command line for a category that requires one."""
 
-	def __init__( this, category ):
-		super().__init__( category )
-		this.category = category
+	def describe( this ):
+		return "category {0} requires an explicit selection".format( this.category.description() )
 
 class DefineOfOption( private.DefineOfSelectable ):
 	"""Same as private.DefineOfSelectable, plus an `option()` alias for
@@ -185,7 +208,7 @@ class Selectable( private.ItemForHelp ):
 		Default raises RunWithNotImplemented - override to give this
 		selectable actual behavior.
 		"""
-		raise RunWithNotImplemented()
+		raise RunWithNotImplemented( this )
 
 class Option( Selectable ):
 	"""A selectable chosen by a flag (`-x` / `--xxx`). Exactly one Option per
@@ -273,7 +296,7 @@ class SelectableCategory( private.ItemForHelp ):
 		"""
 		selectables = this.selectables_defines()
 		if 0 == len( selectables ):
-			raise DefaultDoesNotExist()
+			raise DefaultDoesNotExist( this )
 
 		return selectables[0].selectable()
 
@@ -358,17 +381,17 @@ class Parser:
 		already silently overwritten an earlier one. See KeyIsDuplicated /
 		CategoryIsMixed for what each check catches and why; both are
 		scoped to this Parser's own categories_templates_ only."""
-		keys_seen = set()
+		categories_by_key = {}
 
 		for category, external_key, selectable in this._entries():
-			if external_key in keys_seen:
-				raise KeyIsDuplicated()
+			if external_key in categories_by_key:
+				raise KeyIsDuplicated( external_key, categories_by_key[ external_key ], category )
 
-			keys_seen.add( external_key )
+			categories_by_key[ external_key ] = category
 
 		for category in this.categories_templates_:
 			if 1 < len( { define.selectable().parse_identifier() for define in category.selectables_defines() } ):
-				raise CategoryIsMixed()
+				raise CategoryIsMixed( category )
 
 	def __init__( this, categories_templates ):
 		"""categories_templates: a list of SelectableCategory *classes* (not
@@ -433,12 +456,12 @@ class Parser:
 			message = str( exception )
 
 			if -1 != message.find( "not recognize" ):
-				raise UndefinedOptionSpecified() from exception
+				raise UndefinedOptionSpecified( exception.opt ) from exception
 
 			if -1 != message.find( "requires argument" ):
-				raise OptionValueIsMissing() from exception
+				raise OptionValueIsMissing( exception.opt ) from exception
 
-			raise OptionIsMalformed() from exception
+			raise OptionIsMalformed( exception.opt ) from exception
 
 	def resolve( this, arguments, user_datas = None ):
 		"""Parse `arguments` (a list of `str`, no program name) and return a
