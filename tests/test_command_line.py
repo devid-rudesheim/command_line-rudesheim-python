@@ -956,6 +956,70 @@ class ParserEdgeCaseTests( ut.TestCase ):
 		with this.assertRaises( cl.OptionIsMalformed ):
 			cl.Parser( [ Category_0 ] ).resolve( [ '--help=x' ] )
 
+class DuplicateKeyOption_0( cl.Option ):
+	pass
+
+class DuplicateKeyOption_1( cl.Option ):
+	pass
+
+class DuplicateKeyCategory( cl.SelectableCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ DuplicateKeyOption_0.tie( ( "a", ), "first" ), DuplicateKeyOption_1.tie( ( "a", ), "second" ) ]
+
+class DuplicateKeyCategory_A( cl.SelectableCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ DuplicateKeyOption_0.tie( ( "a", ), "first" ) ]
+
+class DuplicateKeyCategory_B( cl.SelectableCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ DuplicateKeyOption_1.tie( ( "a", ), "second" ) ]
+
+class MixedKindCommand( cl.Command ):
+	pass
+
+class MixedCategory( cl.SelectableCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ DuplicateKeyOption_0.tie( ( "apply", ), "apply" ), MixedKindCommand.tie( ( "deploy", ), "deploy" ) ]
+
+class ParserValidationTests( ut.TestCase ):
+
+	def test_duplicate_key_within_one_category_raises_key_is_duplicated( this ):
+		# 同一category内で同じkeyを二重にtieすると、1回のgetopt呼び出しを共有する
+		# 単一lookupテーブル (Parser._resolve() 内) が黙って後勝ち上書きされてしまう
+		# ため、構築時に弾く。
+		with this.assertRaises( cl.KeyIsDuplicated ):
+			cl.Parser( [ DuplicateKeyCategory ] )
+
+	def test_duplicate_key_across_two_categories_raises_key_is_duplicated( this ):
+		# 別categoryどうしでも、同一Parserレベルでは1回のgetopt呼び出しを共有する
+		# ため同じ危険がある - category内かcategory跨ぎかは区別しない。
+		with this.assertRaises( cl.KeyIsDuplicated ):
+			cl.Parser( [ DuplicateKeyCategory_A, DuplicateKeyCategory_B ] )
+
+	def test_option_and_command_mixed_in_one_category_raises_category_is_mixed( this ):
+		# Option.parse_with は同一categoryへの二重代入を OptionIsInConflict で
+		# 検出するが、Command.parse_with には対称のチェックがない。1つの
+		# category に Option と Command を混在させると、マッチした Command が
+		# 黙って既に決まっていた Option を上書きしてしまう - それを構築時に防ぐ。
+		with this.assertRaises( cl.CategoryIsMixed ):
+			cl.Parser( [ MixedCategory ] )
+
+	def test_reusing_a_key_at_a_nested_level_does_not_raise( this ):
+		# "h"/"help" はroot (Category_0) と Container.parser_define() 配下
+		# (SubOptionCategory) の両方で使われているが、getopt は最初の非オプション
+		# 引数 (サブコマンドtoken) で止まり、ネストした Parser は独立に構築・
+		# 検証されるため、階層をまたいだ衝突は起こり得ない。
+		cl.Parser( [ Category_0, RootCommandCategory ] )
+		Container.parser_define()
+
 class DepthChoice( cl.Option ):
 
 	def value( this ):
