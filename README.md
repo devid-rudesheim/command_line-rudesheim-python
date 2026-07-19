@@ -527,6 +527,13 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 
 ### `Parser`
 
+- `[Provides]` `Parser(categories_templates)`: validates the declarations immediately and raises
+  `KeyIsDuplicated` if two selectables anywhere in `categories_templates` (same category or two
+  different ones) tie the same external key, or `CategoryIsMixed` if one category's
+  `selectables_defines()` ties selectables of more than one kind (e.g. an `Option` and a `Command`
+  together) - keep `Option`s and `Command`s in separate categories, as every worked example above
+  does. Both checks are scoped to this one level; a nested `Command`'s own `parser_define()` is
+  validated independently once it is constructed, so reusing a key one level down is fine.
 - `[Provides]` `resolve(arguments, user_datas=None) -> RunParameters`: parse without running
   anything; the returned `RunParameters` holds `categories`/`arguments`/`user_datas`. Raises
   `UndefinedOptionSpecified` for an unrecognized flag, `OptionIsInConflict` when two Options from

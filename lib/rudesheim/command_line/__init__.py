@@ -38,6 +38,29 @@ class RunWithNotImplemented( BasicException ):
 	exactly once on whatever it resolves to."""
 	pass
 
+class KeyIsDuplicated( BasicException ):
+	"""Raised by Parser.__init__ when two selectables tied anywhere in this
+	Parser's own categories_templates_ share the same external key spelling
+	- whether both ties are in the same category or two different ones.
+	Both cases hit the same lookup table inside Parser._resolve(), so
+	without this check the second tie would just silently overwrite the
+	first, starving its category of that key with no error at all. Scoped
+	to this one Parser level only - a nested Command's own parser_define()
+	is validated independently when it is constructed, and getopt stops
+	consuming flags at the first positional token, so two different levels
+	of a command tree can never actually contest the same key."""
+	pass
+
+class CategoryIsMixed( BasicException ):
+	"""Raised by Parser.__init__ when one SelectableCategory's
+	selectables_defines() ties selectables of more than one kind together
+	(e.g. an Option and a Command in the same category). Option.parse_with
+	raises OptionIsInConflict when a category is chosen twice, but
+	Command.parse_with has no equivalent check - a mixed category would let
+	a matched Command silently overwrite an already-decided Option instead
+	of raising anything."""
+	pass
+
 class DefineOfOption( private.DefineOfSelectable ):
 	"""Same as private.DefineOfSelectable, plus an `option()` alias for
 	`.selectable()`.
@@ -286,10 +309,45 @@ class Parser:
 		cl.Parser( [ Mode, ReportStyle ] )
 	"""
 
+	def _entries( this ):
+		"""Internal: every (category, external key spelling, selectable)
+		triple this Parser's categories declare, reusing the same
+		selectables_defines()/keys()/external_key_for() structure _resolve()
+		itself reads - no separate lookup table to keep in sync."""
+		for category in this.categories_templates_:
+			for define in category.selectables_defines():
+				selectable = define.selectable()
+				identifier = selectable.parse_identifier()
+
+				for key in define.keys():
+					yield category, identifier.external_key_for( key, selectable ), selectable
+
+	def _validate( this ):
+		"""Internal: construction-time checks _resolve() itself has no
+		chance to make, since by the time it runs a colliding entry has
+		already silently overwritten an earlier one. See KeyIsDuplicated /
+		CategoryIsMixed for what each check catches and why; both are
+		scoped to this Parser's own categories_templates_ only."""
+		keys_seen = set()
+
+		for category, external_key, selectable in this._entries():
+			if external_key in keys_seen:
+				raise KeyIsDuplicated()
+
+			keys_seen.add( external_key )
+
+		for category in this.categories_templates_:
+			if 1 < len( { define.selectable().parse_identifier() for define in category.selectables_defines() } ):
+				raise CategoryIsMixed()
+
 	def __init__( this, categories_templates ):
 		"""categories_templates: a list of SelectableCategory *classes* (not
-		instances), e.g. `Parser( [ Mode, ReportStyle ] )`."""
+		instances), e.g. `Parser( [ Mode, ReportStyle ] )`. Raises
+		KeyIsDuplicated or CategoryIsMixed immediately if the declarations
+		themselves are inconsistent, instead of leaving that to surface as
+		confusing behavior later during resolve()/parse()."""
 		this.categories_templates_ = categories_templates
+		this._validate()
 
 	def _resolve( this, arguments, user_datas = None ):
 		"""Internal: same as resolve(), but returns the full
@@ -392,19 +450,6 @@ class Parser:
 		"""Same as `parse(sys.argv[1:], user_datas)` - the usual top-level
 		entry point for a real script."""
 		return this.parse( sys.argv[1:], user_datas )
-
-	def _entries( this ):
-		"""Internal: every (category, external key spelling, selectable)
-		triple this Parser's categories declare, reusing the same
-		selectables_defines()/keys()/external_key_for() structure _resolve()
-		itself reads - no separate lookup table to keep in sync."""
-		for category in this.categories_templates_:
-			for define in category.selectables_defines():
-				selectable = define.selectable()
-				identifier = selectable.parse_identifier()
-
-				for key in define.keys():
-					yield category, identifier.external_key_for( key, selectable ), selectable
 
 	def _candidates_for( this, prefix ):
 		return [ external for category, external, selectable in this._entries() if external.startswith( prefix ) ]
