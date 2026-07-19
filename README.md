@@ -525,6 +525,25 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Required]` implement `selectables_defines()`: selectable definitions in this category
 - `[Free]` override `default()` explicitly instead of relying on "first declared wins" (recommended)
 
+### `RequiredCategory` (optional)
+
+A `SelectableCategory` subclass for a category that must be chosen explicitly on the command line -
+`default()` raises `SelectableIsOmitted(this)` instead of falling back to `DefaultDoesNotExist` or the
+first declared selectable:
+
+```python
+class Mode( cl.RequiredCategory ):
+    @classmethod
+    def selectables_defines( this ):
+        return [ Apply.tie( ( "a", "apply" ), "apply changes" ) ]
+```
+
+`SelectableIsOmitted` carries the offending category on `.category`, so a caller catching it across
+several `RequiredCategory` subclasses can tell which one was missing without parsing a message string.
+The check runs inside `default()` itself - the same extension point every category already has - so it
+fires identically for `Option`- and `Command`-based categories, and whether the category is driven via
+`resolve()` (manual dispatch) or `parse()` (automatic `run_with()`).
+
 ### `Parser`
 
 - `[Provides]` `Parser(categories_templates)`: validates the declarations immediately and raises

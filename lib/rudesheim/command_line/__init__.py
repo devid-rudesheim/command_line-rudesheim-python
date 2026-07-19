@@ -61,6 +61,16 @@ class CategoryIsMixed( BasicException ):
 	of raising anything."""
 	pass
 
+class SelectableIsOmitted( BasicException ):
+	"""Raised by RequiredCategory.default() when nothing was explicitly
+	selected on the command line for a category that requires one. Carries
+	the offending SelectableCategory (`.category`) so callers can identify
+	which category failed without parsing a message string."""
+
+	def __init__( this, category ):
+		super().__init__( category )
+		this.category = category
+
 class DefineOfOption( private.DefineOfSelectable ):
 	"""Same as private.DefineOfSelectable, plus an `option()` alias for
 	`.selectable()`.
@@ -266,6 +276,26 @@ class SelectableCategory( private.ItemForHelp ):
 			raise DefaultDoesNotExist()
 
 		return selectables[0].selectable()
+
+class RequiredCategory( SelectableCategory ):
+	"""A SelectableCategory that must be explicitly chosen on the command
+	line - default() raises SelectableIsOmitted(this) instead of falling
+	back to DefaultDoesNotExist or the first declared selectable. Inherit
+	from this instead of SelectableCategory to make a category mandatory:
+
+		class Mode( cl.RequiredCategory ):
+			@classmethod
+			def selectables_defines( this ):
+				return [ Apply.tie( ( "a", "apply" ), "apply changes" ) ]
+
+	Works the same whether the category's selectables are Option or
+	Command - the check happens before anything is dispatched to, so it
+	fires for both resolve() (manual dispatch) and parse() (automatic
+	run_with()) alike."""
+
+	@classmethod
+	def default( this ):
+		raise SelectableIsOmitted( this )
 
 class RunParameters:
 	"""Everything a `run_with(run_parameters)` implementation gets, bundled

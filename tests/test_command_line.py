@@ -1020,6 +1020,47 @@ class ParserValidationTests( ut.TestCase ):
 		cl.Parser( [ Category_0, RootCommandCategory ] )
 		Container.parser_define()
 
+class RequiredOption_0( cl.Option ):
+	pass
+
+class RequiredOptionCategory( cl.RequiredCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ RequiredOption_0.tie( ( 'a', 'apply' ), "apply changes" ) ]
+
+class RequiredCommand_0( cl.Command ):
+	pass
+
+class RequiredCommandCategory( cl.RequiredCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ RequiredCommand_0.tie( ( 'build', ), "build" ) ]
+
+class RequiredCategoryTests( ut.TestCase ):
+
+	def test_omitted_option_category_raises_selectable_is_omitted( this ):
+		with this.assertRaises( cl.SelectableIsOmitted ):
+			cl.Parser( [ RequiredOptionCategory ] ).resolve( [] )
+
+	def test_omitted_command_category_raises_selectable_is_omitted( this ):
+		# Option/Command どちらの種類のカテゴリでも、種類による分岐なしに
+		# 同じ default() のタイミングで検出できることを確認する。
+		with this.assertRaises( cl.SelectableIsOmitted ):
+			cl.Parser( [ RequiredCommandCategory ] ).resolve( [] )
+
+	def test_explicit_selection_does_not_raise( this ):
+		run_parameters = cl.Parser( [ RequiredOptionCategory ] ).resolve( [ '-a' ] )
+		this.assertEqual( RequiredOption_0, run_parameters.categories[ RequiredOptionCategory ] )
+
+	def test_exception_carries_offending_category( this ):
+		try:
+			cl.Parser( [ RequiredOptionCategory ] ).resolve( [] )
+			this.fail( "expected SelectableIsOmitted" )
+		except cl.SelectableIsOmitted as exception:
+			this.assertEqual( RequiredOptionCategory, exception.category )
+
 class DepthChoice( cl.Option ):
 
 	def value( this ):
