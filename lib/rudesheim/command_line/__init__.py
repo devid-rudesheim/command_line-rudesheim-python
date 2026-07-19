@@ -89,6 +89,22 @@ class Selectable( private.ItemForHelp ):
 		return this
 
 	@classmethod
+	def value_completions( this, prefix ):
+		"""Candidate strings this selectable's own value could complete to
+		(only meaningful when value_amount() > 0) - override on your own
+		value-taking Option/Command:
+
+			@classmethod
+			def value_completions( this, prefix ):
+				return ( "debug", "release" )
+
+		Callers (Parser.complete()) filter the returned candidates down to
+		ones starting with `prefix` themselves, so this may return its full
+		candidate set unfiltered. Default: no candidates - most values
+		(free-form text, paths, numbers) have nothing sensible to suggest."""
+		return ()
+
+	@classmethod
 	def parse_identifier( this ):
 		"""Which private-layer class (rudesheim.command_line.private.*) drives
 		this kind of selectable. Not just for Parser.resolve()'s own
@@ -371,6 +387,81 @@ class Parser:
 		"""Same as `parse(sys.argv[1:], user_datas)` - the usual top-level
 		entry point for a real script."""
 		return this.parse( sys.argv[1:], user_datas )
+
+	def complete( this, arguments, user_datas = None ):
+		"""Tab-completion entry point: `arguments` is the CLI tokens typed so
+		far, with the LAST element being the word currently being completed
+		(an empty string "" if the user just typed a space and is starting a
+		fresh word). Returns the list of candidate strings that word could
+		complete to - flag/subcommand keys at whatever level of the command
+		tree `arguments` reaches, or value_completions() of a value-taking
+		Option/Command whose flag was the immediately preceding token.
+
+		Unlike resolve()/parse(), never raises on incomplete or malformed
+		input - completion is by definition mid-typing, so this walks
+		`arguments` leniently instead of handing them to getopt.
+		"""
+		user_datas = [] if user_datas is None else user_datas
+		arguments = list( arguments ) if 0 < len( arguments ) else [ "" ]
+
+		return this._complete_walk( arguments[:-1], arguments[-1], user_datas )
+
+	def _complete_walk( this, completed, prefix, user_datas ):
+		"""Internal: leniently consume `completed` one token at a time - an
+		Option's flag (plus its value token, if it takes one and one is
+		still present) leaves this Parser's own level; a Command's token
+		descends into `selectable.parser_define()` for the rest. Once
+		`completed` runs out, return this level's own candidates for
+		`prefix`."""
+		if 0 == len( completed ):
+			return this._candidates_for( prefix )
+
+		match = this._match_key( completed[0] )
+		if match is None:
+			return []
+
+		category, selectable = match
+		rest = completed[1:]
+
+		if 0 < selectable.value_amount():
+			if 0 == len( rest ):
+				return [ candidate for candidate in selectable.value_completions( prefix ) if candidate.startswith( prefix ) ]
+
+			rest = rest[1:]
+
+		if this._is_command( selectable ):
+			return selectable.parser_define()._complete_walk( rest, prefix, user_datas )
+
+		return this._complete_walk( rest, prefix, user_datas )
+
+	def _entries( this ):
+		"""Internal: every (category, external key spelling, selectable)
+		triple this Parser's categories declare, reusing the same
+		selectables_defines()/keys()/external_key_for() structure _resolve()
+		itself reads - no separate lookup table to keep in sync."""
+		for category in this.categories_templates_:
+			for define in category.selectables_defines():
+				selectable = define.selectable()
+				identifier = selectable.parse_identifier()
+
+				for key in define.keys():
+					yield category, identifier.external_key_for( key, selectable ), selectable
+
+	def _candidates_for( this, prefix ):
+		return [ external for category, external, selectable in this._entries() if external.startswith( prefix ) ]
+
+	def _match_key( this, key ):
+		for category, external, selectable in this._entries():
+			if external == key:
+				return ( category, selectable )
+
+		return None
+
+	def _is_command( this, selectable ):
+		if not isinstance( selectable, type ):
+			return False
+
+		return issubclass( selectable, Command )
 
 	def __init__( this, categories_templates ):
 		"""categories_templates: a list of SelectableCategory *classes* (not

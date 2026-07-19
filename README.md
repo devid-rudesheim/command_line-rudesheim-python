@@ -479,6 +479,8 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Provides]` `basic_tie(keys)`: use class name as description
 - `[Provides]` `value_amount()`: default `0`
 - `[Provides]` `with_value(strings)`: default returns the class itself
+- `[Provides]` `value_completions(prefix)`: default returns `()` - only meaningful when
+  `value_amount()` > 0; see "Tab Completion" below
 - `[Provides]` `run_with(run_parameters)`: default raises `RunWithNotImplemented`
 - `[Free]` override `run_with(run_parameters)` to make this selectable executable
 - `[Provides]` `decided_for(category, state)`: internal - runs once, right when this selectable becomes
@@ -532,6 +534,9 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Provides]` `parse(arguments, user_datas=None)`: resolve, then call `run_with(run_parameters)`
   exactly once on the deepest matched `Command`, and return its result
 - `[Provides]` `parse_from_default(user_datas=None)`: same as `parse(sys.argv[1:], user_datas)`
+- `[Provides]` `complete(arguments, user_datas=None) -> list[str]`: tab-completion candidates for
+  the last element of `arguments`; never raises on incomplete/malformed input. See "Tab Completion"
+  below - this alone does not make Tab-key completion work in a shell, it only computes candidates.
 - `[Required]` pass a list of category classes to `Parser(...)`
 
 ### `OptionForPrint` / `BasicHelp` / `BasicVersion` (optional)
@@ -540,10 +545,87 @@ Both `resolve()` and `parse()` build a `RunParameters` object with three fields:
 - `[Free]` override `overview()`, `usage()`, `explanation()` for help text (`BasicHelp`)
 - `[Free]` override `product_name()`, `numbers()` for version text (`BasicVersion`)
 
+## Tab Completion
+
+`Parser.complete(arguments, user_datas=None)` computes candidate strings for the *last* element of
+`arguments` (an empty string `""` if the user just typed a space and is starting a fresh word) -
+flag/subcommand keys at whatever level of the command tree the earlier elements reach, or
+`value_completions(prefix)` of a value-taking `Option`/`Command` whose flag was the immediately
+preceding token. This is a **library-level API only** - it takes a Python list and returns a Python
+list. It has nothing to do with a shell yet.
+
+```python
+parser = cl.Parser(root_categories_templates)
+parser.complete([])                             # -> ["-v", "--verbose", "-q", "--quiet", "-h", "--help", "service", "config"]
+parser.complete(["service", ""])                # -> ["-d", "--detach", "-f", "--foreground", "-h", "--help", "start", "stop"]
+parser.complete(["service", "st"])              # -> ["start", "stop"]
+```
+
+There are two separate, unrelated things below - do not mix them up:
+
+1. **Testing `complete()` itself from a terminal**, with no shell involved at all. `examples/deploy.py`
+   exposes a `--complete` mode for exactly this - it is a manual, explicit flag you type yourself to
+   call `Parser.complete()` and print its result, purely to sanity-check the library's answer:
+
+   ```zsh
+   ./examples/deploy.py --complete                    # -> -v / --verbose / -q / --quiet / -h / --help / service / config
+   ./examples/deploy.py --complete service ""          # -> -d / --detach / -f / --foreground / -h / --help / start / stop
+   ./examples/deploy.py --complete service st          # -> start / stop
+   ```
+
+   Nothing here reacts to the Tab key. This is you, calling the backend directly.
+
+2. **Actual Tab-key completion in a shell** is a *different, additional* piece of setup: a shell-side
+   completion function that the shell calls automatically when you press Tab, and which then calls
+   step 1's `--complete` mode *for you* and feeds the result back to the shell. An end user typing
+   `--complete` by hand is never part of normal use - only the completion function does that, behind
+   the scenes. Try it hands-on without touching your own shell config:
+
+   ```zsh
+   ./examples/deploy-completion-shell.zsh
+   ```
+
+   This drops you into a fresh interactive zsh with the wiring already done (it points `ZDOTDIR` at a
+   throwaway directory holding a generated `.zshrc`, so your real `~/.zshrc` is untouched and the setup
+   disappears again once you exit that shell with `exit`/Ctrl-D). Inside it, just type
+   `./deploy.py <Tab>` / `./deploy.py service <Tab>` / etc.
+
+   Its comments spell out two prerequisites that trip people up when wiring this into your own shell
+   instead:
+   - zsh's completion system doesn't exist until `autoload -Uz compinit && compinit` has run *in
+     that shell*, and this state is per-session, not persistent - a brand new terminal tab has none
+     of it until compinit runs there too, even if you already did it once elsewhere. Skipping this
+     makes `compdef` either error outright or silently no-op, with Tab falling back to plain
+     filename completion and no error at all - `print -r -- ${_comps[deploy.py]}` after registering
+     should print `_deploy_py`; if it prints nothing, registration did not actually take effect in
+     that shell.
+   - `compdef` binds to the literal command word you type, so it only fires for `./deploy.py <Tab>`
+     / `deploy.py <Tab>`, never for `python3 deploy.py <Tab>` (there the typed command word is
+     `python3`, not `deploy.py`). `deploy.py` already ships executable (`#!/usr/bin/env python3` +
+     the executable bit) so this works without typing `python3` in front.
+
+   To make this permanent in your *own* shell (rather than the disposable one the script above gives
+   you), copy the `autoload -Uz compinit && compinit`, `_deploy_py()` function body, and
+   `compdef _deploy_py deploy.py` lines out of `examples/deploy-completion-shell.zsh` into `~/.zshrc`.
+
+`value_completions()` is a plain classmethod override, same as `with_value()` - only override it on a
+value-taking `Option`/`Command` where suggesting values makes sense.
+
 ## Help / Version
 
 `BasicHelp` and `BasicVersion` are optional utilities.
 The core feature is object-oriented option selection by `Parser`.
+
+`examples/run.py` is a runnable, flat (Command-less) CLI wiring both of them in together with an
+ordinary value-less `Example`/`Enabled`/`Disabled` option category - the "Quick Start" shape above,
+plus `-v`/`--version` and `-h`/`--help`:
+
+```bash
+python3 examples/run.py --version   # -> Example, version 2.1.0
+python3 examples/run.py --help      # -> generated options: listing
+python3 examples/run.py --example   # -> Enable
+python3 examples/run.py             # -> Disable (Example category's default())
+```
 
 ## Run Tests
 
