@@ -1020,6 +1020,203 @@ class ParserValidationTests( ut.TestCase ):
 		cl.Parser( [ Category_0, RootCommandCategory ] )
 		Container.parser_define()
 
+class RequiredOption_0( cl.Option ):
+	pass
+
+class RequiredOptionCategory( cl.RequiredCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ RequiredOption_0.tie( ( 'a', 'apply' ), "apply changes" ) ]
+
+class RequiredCommand_0( cl.Command ):
+	pass
+
+class RequiredCommandCategory( cl.RequiredCategory ):
+
+	@classmethod
+	def selectables_defines( this ):
+		return [ RequiredCommand_0.tie( ( 'build', ), "build" ) ]
+
+class RequiredCategoryTests( ut.TestCase ):
+
+	def test_omitted_option_category_raises_selectable_is_omitted( this ):
+		with this.assertRaises( cl.SelectableIsOmitted ):
+			cl.Parser( [ RequiredOptionCategory ] ).resolve( [] )
+
+	def test_omitted_command_category_raises_selectable_is_omitted( this ):
+		# Option/Command どちらの種類のカテゴリでも、種類による分岐なしに
+		# 同じ default() のタイミングで検出できることを確認する。
+		with this.assertRaises( cl.SelectableIsOmitted ):
+			cl.Parser( [ RequiredCommandCategory ] ).resolve( [] )
+
+	def test_explicit_selection_does_not_raise( this ):
+		run_parameters = cl.Parser( [ RequiredOptionCategory ] ).resolve( [ '-a' ] )
+		this.assertEqual( RequiredOption_0, run_parameters.categories[ RequiredOptionCategory ] )
+
+	def test_exception_carries_offending_category( this ):
+		try:
+			cl.Parser( [ RequiredOptionCategory ] ).resolve( [] )
+			this.fail( "expected SelectableIsOmitted" )
+		except cl.SelectableIsOmitted as exception:
+			this.assertEqual( RequiredOptionCategory, exception.category )
+
+class ExceptionAttributeTests( ut.TestCase ):
+
+	def test_default_does_not_exist_carries_category( this ):
+		try:
+			EmptyCategoryWithBaseDefault.default()
+			this.fail( "expected DefaultDoesNotExist" )
+		except cl.DefaultDoesNotExist as exception:
+			this.assertEqual( EmptyCategoryWithBaseDefault, exception.category )
+
+	def test_run_with_not_implemented_carries_selectable( this ):
+		try:
+			SilentByDefault.run_with( None )
+			this.fail( "expected RunWithNotImplemented" )
+		except cl.RunWithNotImplemented as exception:
+			this.assertEqual( SilentByDefault, exception.selectable )
+
+	def test_key_is_duplicated_carries_key_and_both_categories( this ):
+		try:
+			cl.Parser( [ DuplicateKeyCategory_A, DuplicateKeyCategory_B ] )
+			this.fail( "expected KeyIsDuplicated" )
+		except cl.KeyIsDuplicated as exception:
+			this.assertEqual( "-a", exception.key )
+			this.assertEqual( DuplicateKeyCategory_A, exception.first_category )
+			this.assertEqual( DuplicateKeyCategory_B, exception.second_category )
+
+	def test_category_is_mixed_carries_category( this ):
+		try:
+			cl.Parser( [ MixedCategory ] )
+			this.fail( "expected CategoryIsMixed" )
+		except cl.CategoryIsMixed as exception:
+			this.assertEqual( MixedCategory, exception.category )
+
+	def test_option_is_in_conflict_carries_category_and_both_selectables( this ):
+		try:
+			cl.Parser( [ Category_0 ] ).resolve( [ '-v', '-h' ] )
+			this.fail( "expected OptionIsInConflict" )
+		except cl.OptionIsInConflict as exception:
+			this.assertEqual( Category_0, exception.category )
+			this.assertEqual( Option_1, exception.previous )
+			this.assertEqual( Option_2, exception.attempted )
+
+	def test_undefined_option_specified_carries_key( this ):
+		try:
+			cl.Parser( [] ).resolve( [ '-h' ] )
+			this.fail( "expected UndefinedOptionSpecified" )
+		except cl.UndefinedOptionSpecified as exception:
+			this.assertEqual( "h", exception.key )
+
+	def test_option_value_is_missing_carries_key( this ):
+		try:
+			cl.Parser( [ Category_1 ] ).resolve( [ '-d' ] )
+			this.fail( "expected OptionValueIsMissing" )
+		except cl.OptionValueIsMissing as exception:
+			this.assertEqual( "d", exception.key )
+
+	def test_option_is_malformed_carries_key( this ):
+		try:
+			cl.Parser( [ Category_0 ] ).resolve( [ '--help=x' ] )
+			this.fail( "expected OptionIsMalformed" )
+		except cl.OptionIsMalformed as exception:
+			this.assertEqual( "help", exception.key )
+
+class ExceptionPhaseClassificationTests( ut.TestCase ):
+
+	PARSE_TIME = ( cl.SelectableIsOmitted, cl.DefaultDoesNotExist, cl.OptionIsInConflict,
+		cl.UndefinedOptionSpecified, cl.OptionValueIsMissing, cl.OptionIsMalformed )
+
+	DECLARATION_TIME = ( cl.KeyIsDuplicated, cl.CategoryIsMixed )
+
+	DISPATCH_TIME = ( cl.RunWithNotImplemented, )
+
+	def test_actual_input_errors_are_parse_exceptions( this ):
+		# resolve()/parse() が実際のargvを処理中に投げるものは全てParseException。
+		for exception_type in this.PARSE_TIME:
+			this.assertTrue( issubclass( exception_type, cl.ParseException ), exception_type )
+
+	def test_declaration_time_validation_errors_are_declaration_exceptions( this ):
+		# Parser.__init__ が categories_templates 自体の宣言ミスに対して即座に
+		# 投げるものは、argvを一切見ていないためDeclarationExceptionであって
+		# ParseExceptionではない。
+		for exception_type in this.DECLARATION_TIME:
+			this.assertTrue( issubclass( exception_type, cl.DeclarationException ), exception_type )
+			this.assertFalse( issubclass( exception_type, cl.ParseException ), exception_type )
+
+	def test_run_with_not_implemented_is_a_dispatch_exception( this ):
+		# parsing自体は既に成功した後、run_with()呼び出し時点で初めて起こるため
+		# DispatchExceptionであってParseException/DeclarationExceptionではない。
+		for exception_type in this.DISPATCH_TIME:
+			this.assertTrue( issubclass( exception_type, cl.DispatchException ), exception_type )
+			this.assertFalse( issubclass( exception_type, cl.ParseException ), exception_type )
+			this.assertFalse( issubclass( exception_type, cl.DeclarationException ), exception_type )
+
+	def test_every_exception_belongs_to_exactly_one_phase( this ):
+		# DeclarationException/ParseException/DispatchExceptionは互いに排他 -
+		# ライブラリが投げる全例外はこのどれか1つにのみ属する。
+		phases = ( cl.DeclarationException, cl.ParseException, cl.DispatchException )
+
+		for exception_type in this.PARSE_TIME + this.DECLARATION_TIME + this.DISPATCH_TIME:
+			matches = [ phase for phase in phases if issubclass( exception_type, phase ) ]
+			this.assertEqual( 1, len( matches ), ( exception_type, matches ) )
+
+	def test_default_does_not_exist_still_carries_category_via_multiple_inheritance( this ):
+		try:
+			EmptyCategoryWithBaseDefault.default()
+			this.fail( "expected DefaultDoesNotExist" )
+		except cl.DefaultDoesNotExist as exception:
+			this.assertEqual( EmptyCategoryWithBaseDefault, exception.category )
+			this.assertIsInstance( exception, cl.ParseException )
+
+class DescribeAndExitCodeTests( ut.TestCase ):
+
+	def test_parse_exceptions_report_ex_usage( this ):
+		for exception in \
+		(
+			cl.SelectableIsOmitted( RequiredOptionCategory ),
+			cl.DefaultDoesNotExist( EmptyCategoryWithBaseDefault ),
+			cl.OptionIsInConflict( Category_0, Option_1, Option_2 ),
+			cl.UndefinedOptionSpecified( "x" ),
+			cl.OptionValueIsMissing( "d" ),
+			cl.OptionIsMalformed( "help" ),
+		):
+			this.assertEqual( 64, exception.exit_code() )
+
+	def test_declaration_exceptions_report_ex_software( this ):
+		for exception in \
+		(
+			cl.KeyIsDuplicated( "-a", DuplicateKeyCategory_A, DuplicateKeyCategory_B ),
+			cl.CategoryIsMixed( MixedCategory ),
+		):
+			this.assertEqual( 70, exception.exit_code() )
+
+	def test_dispatch_exception_reports_ex_software( this ):
+		this.assertEqual( 70, cl.RunWithNotImplemented( SilentByDefault ).exit_code() )
+
+	def test_describe_mentions_the_offending_key( this ):
+		this.assertIn( "-x", cl.UndefinedOptionSpecified( "x" ).describe() )
+		this.assertIn( "-d", cl.OptionValueIsMissing( "d" ).describe() )
+		this.assertIn( "--help", cl.OptionIsMalformed( "help" ).describe() )
+
+	def test_describe_mentions_the_offending_category( this ):
+		this.assertIn( "RequiredOptionCategory", cl.SelectableIsOmitted( RequiredOptionCategory ).describe() )
+		this.assertIn( "EmptyCategoryWithBaseDefault", cl.DefaultDoesNotExist( EmptyCategoryWithBaseDefault ).describe() )
+		this.assertIn( "MixedCategory", cl.CategoryIsMixed( MixedCategory ).describe() )
+
+	def test_describe_mentions_the_offending_selectable( this ):
+		this.assertIn( "SilentByDefault", cl.RunWithNotImplemented( SilentByDefault ).describe() )
+
+	def test_basic_exception_default_describe_falls_back_to_str( this ):
+		class CustomException( cl.BasicException ):
+			def __init__( this, detail ):
+				super().__init__( detail )
+
+		exception = CustomException( "detail" )
+		this.assertEqual( str( exception ), exception.describe() )
+		this.assertEqual( 1, exception.exit_code() )
+
 class DepthChoice( cl.Option ):
 
 	def value( this ):
